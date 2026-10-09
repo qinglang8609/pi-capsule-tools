@@ -4,6 +4,18 @@
   "type": "module",
   "description": "Render pi tool calls as one-line green capsules, expandable with ctrl+o",
   "license": "MIT",
+  "author": {
+    "name": "fanchao",
+    "url": "https://github.com/qinglang8609"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/qinglang8609/pi-capsule-tools.git"
+  },
+  "homepage": "https://github.com/qinglang8609/pi-capsule-tools#readme",
+  "bugs": {
+    "url": "https://github.com/qinglang8609/pi-capsule-tools/issues"
+  },
   "keywords": [
     "pi-package",
     "pi",
