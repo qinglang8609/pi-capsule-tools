@@ -80,30 +80,44 @@ function capsule(
 	return new Capsule(capsuleLine(theme, arrow, command, reason));
 }
 
-/** Collapsed: just the capsule. Expanded: capsule plus the result body. */
-function capsuleWithBody(
+/**
+ * The result row. Collapsed it is empty: `renderCall` already drew the capsule
+ * for this tool call, and drawing a second one doubled every row. Pi keeps the
+ * call and result rows separate, so the detail only appears once expanded.
+ *
+ * The body carries the reason (exit code and similar) on its first line so the
+ * information is not lost, only deferred.
+ */
+function capsuleResult(
 	theme: any,
-	arrow: string,
 	command: string,
 	result: any,
 	expanded: boolean,
 	reason?: string,
+	partialReason?: string,
 ): Component {
-	const head = capsuleLine(theme, arrow, command, reason);
-	if (!expanded) return new Capsule(head);
+	if (!expanded) return new Text("", 0, 0);
 
-	const body = (result.content ?? [])
+	const lines: string[] = [];
+	const notice = reason ?? partialReason;
+	if (notice) lines.push(theme.fg("dim", notice));
+
+	const body = (result?.content ?? [])
 		.filter((c: any) => c.type === "text")
 		.map((c: any) => c.text)
 		.join("\n")
 		.trim();
-	if (!body) return new Capsule(head);
+	if (body) {
+		lines.push(
+			...body.split("\n").map((line: string) => theme.fg("toolOutput", line)),
+		);
+	}
 
-	const painted = body
-		.split("\n")
-		.map((line: string) => theme.fg("toolOutput", line))
-		.join("\n");
-	return new Capsule(head, painted);
+	// The capsule head is repeated so the expanded block still says what ran.
+	return new Capsule(
+		capsuleLine(theme, EXPANDED, command),
+		lines.length ? lines.join("\n") : undefined,
+	);
 }
 
 /**
@@ -190,22 +204,64 @@ export default function (pi: ExtensionAPI) {
 		// extensions). Only the built-ins we know get capsules; everything else
 		// falls through to the next resolver.
 		if (!known) return next();
-		const describe = known;
 		return {
 			renderShell: "self" as const,
 			renderCall(args: any, theme: any) {
-				const { command, reason } = describe(args, undefined, "call");
-				return capsule(theme, COLLAPSED, command, reason);
+				return capsuleCallRow(theme, toolName, args, undefined, "call");
 			},
 			renderResult(result: any, { expanded, isPartial }: any, theme: any, ctx: any) {
-				const { command, reason } = describe(
+				return capsuleResultRow(
+					theme,
+					toolName,
 					ctx.args,
 					result,
-					isPartial ? "partial" : "done",
+					expanded,
+					isPartial ? "partial" : undefined,
 				);
-				const arrow = expanded ? EXPANDED : COLLAPSED;
-				return capsuleWithBody(theme, arrow, command, result, expanded, reason);
 			},
 		};
 	});
+}
+
+// --- row builders ---------------------------------------------------------
+// Exported so rows-check.ts asserts against the same code the resolver uses.
+
+/** The `▸ tool command` line drawn when the call starts. */
+export function capsuleCallRow(
+	theme: any,
+	toolName: string,
+	args: any,
+	result: any,
+	phase: "call" | "partial" | "done",
+): Component {
+	const describe = detailsOf(toolName);
+	if (!describe) return new Text("", 0, 0);
+	const { command, reason } = describe(args, result, phase);
+	return capsule(theme, COLLAPSED, command, reason);
+}
+
+/**
+ * The result row. Empty while collapsed — the call row already drew the
+ * capsule, and drawing it again doubled every tool call on screen.
+ */
+export function capsuleResultRow(
+	theme: any,
+	toolName: string,
+	args: any,
+	result: any,
+	expanded: boolean,
+	partialPhase?: "partial",
+): Component {
+	const describe = detailsOf(toolName);
+	if (!describe) return new Text("", 0, 0);
+	const phase = partialPhase ?? "done";
+	const { command, reason } = describe(args, result, phase);
+	return capsuleResult(
+		theme,
+		command,
+		result,
+		expanded,
+		phase === "done" ? reason : undefined,
+		phase === "partial" ? reason : undefined,
+	);
 }
