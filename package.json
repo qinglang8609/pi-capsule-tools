@@ -1,0 +1,12 @@
+{
+  "name": "pi-capsule-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Render pi tool calls as one-line green capsules, expandable with ctrl+o",
+  "scripts": {
+    "check": "node --experimental-strip-types check.ts && node --experimental-strip-types resolve-check.ts",
+    "typecheck": "tsc --noEmit --skipLibCheck --module nodenext --moduleResolution nodenext --target es2022 --strict capsule-tools.ts",
+    "install-extension": "cp capsule-tools.ts ~/.pi/agent/extensions/"
+  }
+}
