@@ -94,6 +94,31 @@ npm publish
 "pack:check": "npm pack --dry-run"
 ```
 
+### 5. 同时发 GitHub
+
+先用 `gh` 建仓库（或手动建，**别勾** Add README/.gitignore/license，否则首次 push 冲突）：
+
+```bash
+gh repo create <名字> --public --source=. --remote=origin
+# 或手动：git remote add origin https://github.com/<用户>/<名>.git
+
+git push -u origin main
+git push origin --tags          # npm version 打的 tag 别忘推
+```
+
+`package.json` 补上链接字段（npm 页面会显示）：
+
+```json
+"repository": { "type": "git", "url": "git+https://github.com/<用户>/<名>.git" },
+"homepage": "https://github.com/<用户>/<名>#readme",
+"bugs": { "url": "https://github.com/<用户>/<名>/issues" }
+```
+
+**代理坑（本机 2026-10-09 实测）**：git 全局配了 `http.proxy = http://127.0.0.1:1082`，
+该代理**间歇性返回 503 `CONNECT tunnel failed`**。同一命令重试几次就能过 —— 写脚本时
+要**重试循环**（`for i in 1..4; do git push ... && break; sleep 12; done`），
+不能一次失败就放弃。注意别用 `cmd | head` 判断成功：管道退出码取 `head` 的，永远为 0。
+
 ## 验证
 ```bash
 npm run pack:check      # 产物只应含声明的文件，不该有 node_modules / 测试文件

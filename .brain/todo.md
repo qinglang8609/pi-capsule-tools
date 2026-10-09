@@ -2,11 +2,12 @@
 
 ## Todo
 - [ ] [搁置] fix-todo-panel-jitter [[fanchao]] — 改全局 ~/.pi/agent/extensions/abs.ts：todo 面板 aboveEditor → belowEditor，避开 pi 工作指示器占用的 status 行。改完需 /reload 看效果 (认领 2026-10-09 01a120e4-953c-76)
-- [ ] [进行中] package-for-npm-release [[fanchao]] — 把 pi-capsule-tools 改造成标准 pi 包可发 npm：pi 字段 + peerDependencies（5 个 host 包）+ keywords pi-package + files + publishConfig；挂载方式从手动 cp 改成 pi install npm:；照搬 agent_brain_sync 发布流程（npm version patch → pack:check → publish） (认领 2026-10-09 01a120e4-953c-76)
+- [ ] [进行中] publish-to-github [[fanchao]] — 推 pi-capsule-tools 到 GitHub（qinglang8609/pi-capsule-tools）：配 remote、补 package.json 链接字段、推 main + tag v1.0.1 (认领 2026-10-09 01a120e4-953c-76)
 
 ## Done
 
 ### 2026-10-09
+- [x] package-for-npm-release [[fanchao]] — 把 pi-capsule-tools 改造成标准 pi 包可发 npm：pi 字段 + peerDependencies（5 个 host 包）+ keywords pi-package + files + publishConfig；挂载方式从手动 cp 改成 pi install npm:；照搬 agent_brain_sync 发布流程（npm version patch → pack:check → publish） — 已发 npm 1.0.1，本地 npm 安装实测通过 【落地】 (完成 2026-10-09 01a120e4-953c-76)
 - [x] write-audit-findings-page [[fanchao]] — 把「手造测试数据 → 实现与测试一起猜错」这条经验落成概念页，并修正 audit-whole-project 状态 — 经验落成概念页 + 图谱 lint 干净 【落地】 (完成 2026-10-09 01a120e4-953c-76)
 - [x] audit-whole-project [[fanchao]] — 全面审查 pi-capsule-tools：胶囊渲染正确性、边界情况、测试覆盖漏洞、可维护性、与 pi 内部 API 耦合风险 — 审查完成，5 项已修并反向验证 【落地】 (完成 2026-10-09 01a120e4-953c-76)
 - [x] fix-audit-findings [[fanchao]] — 修审查发现的 5 项：bash exit 改用 context.isError、edit 从 details.diff 数 +/−、shortenPath 加分隔符判断、content 加 Array.isArray 守卫、缓存返回副本。新增 real-data-check.ts 用真实工具结果测 — 审查 5 项全修：bash/edit 键名修正、shortenPath、缓存副本 【落地】 (完成 2026-10-09 01a120e4-953c-76)
