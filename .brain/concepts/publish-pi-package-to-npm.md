@@ -133,22 +133,11 @@ r.errors                                   // 必须为空
 r.extensions.find(e => e.path.includes("capsule-tools"))   // 必须存在
 ```
 
-**最重要的坑（2026-10-09 实踩）**：**npm 首次发布新包名返回 `202 Accepted`，不是 201。**
-这是 npm 的 staged publishing —— 首次发布会卡在**暂存等 2FA 证明**。
-当时终端警告：
-
-```
-npm notice npm tokens that bypass 2FA are being restricted ... direct publishing.
-```
-
-`~/.npmrc` 里放 `_authToken` 的方式**正是被限制的那种**。
-修法：`npm login --auth-type=web`（浏览器完成 2FA）后再 publish。
-
-此时 `npm view <包名>` 会看到 `0.0.0-stage` 的占位包（"Temporary package placeholder
-for staged publishing"），**别慌**——正式发布后会被真实版本取代。
-
-第二次 publish 若报 `409 Cannot publish over previously staged version`，
-换个版本号绕过：`npm version patch && npm publish`。
+**最重要的坑（2026-10-09 实踩）**：**npm 首次发布新包名返回 `202 Accepted`，不是 201** ——
+卡在 **staged publishing 等 2FA 证明**。终端警告 `tokens that bypass 2FA are being restricted`；
+`~/.npmrc` 里的 `_authToken` 正是被限制的方式。修法：`npm login --auth-type=web`（浏览器 2FA）后再发。
+此时 `npm view` 看到的是占位包 `0.0.0-stage`，**别慌**，正式发布后会被取代。
+若重发报 `409 Cannot publish over previously staged version`，换版本号绕：`npm version patch && npm publish`。
 
 ## 关联连接
 - [[pi-tool-renderer-override]] — 发布前先保证渲染器真的接管了
