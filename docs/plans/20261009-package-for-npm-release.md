@@ -175,5 +175,35 @@ npm pack --dry-run →
 
 ## 待做
 
-**发布本身（`npm version patch` → `npm publish`）未执行** —— 等用户确认。
-当前状态已可用（本地安装），只是还没上 npm。
+无。发布已完成：`pi-capsule-tools@1.0.1` 已在 npm 上。
+
+## 发布结果（2026-10-09）
+
+```
+$ npm view pi-capsule-tools version
+1.0.1
+```
+
+### 踩到的坑：首次发布返回 202
+
+第一次 `npm publish` 返回 **202 Accepted**（不是 201），包被放进 **staged publishing** 等 2FA 证明。
+终端警告：`npm tokens that bypass 2FA are being restricted ... direct publishing`。
+
+`~/.npmrc` 里的 `_authToken` 正是被限制的方式。用户完成 `npm login --auth-type=web` 后重发成功。
+
+期间 `npm view` 显示的是占位包 `0.0.0-stage`（"Temporary package placeholder for staged publishing"），
+不是我们的版本 —— **这是正常现象**，正式发布后被取代。
+
+### 本地 npm 安装实测（已做）
+
+```
+$ pi install npm:pi-capsule-tools
+Installed npm:pi-capsule-tools
+
+加载位置: ~/.pi/agent/npm/node_modules/pi-capsule-tools/capsule-tools.ts
+加载错误: []
+bash/read/edit/ls: ✅ 胶囊接管
+```
+
+**结论：`.ts` 经 npm 包分发可被 pi 直接加载，无需编译成 `.js`。**
+这是本次最大的不确定点，现已排除。

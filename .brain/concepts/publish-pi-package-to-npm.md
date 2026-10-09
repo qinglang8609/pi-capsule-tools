@@ -1,0 +1,131 @@
+---
+tags: [concept]
+id: publish-pi-package-to-npm
+author: fanchao
+updated: 2026-10-09
+status: active
+---
+
+# 概念：把 pi 扩展发成标准 npm 包
+
+## 触发场景
+写好一个 pi 扩展（或 skill / prompt / theme），想通过 npm 分发、而不是手动 cp 到
+`~/.pi/agent/extensions/`。也适用于把已有扩展改造成可发布包。
+
+## ❌ 表现
+**手动 cp 方式的三个问题**：
+
+1. 没有包身份 —— pi 靠包名/路径去重，cp 的副本没有身份。若同时装了 npm 版，**两份会一起加载**
+   （两份胶囊渲染器叠在一起）。
+2. 升级靠人记得重新 cp —— 忘了就出现"改了代码但宿主跑旧副本"。
+3. 无法分享、无法进官方画廊。
+
+## 🛠 解法
+
+### 1. `package.json` 最小配置
+
+```json
+{
+  "name": "pi-capsule-tools",
+  "version": "1.0.1",
+  "type": "module",
+  "license": "MIT",
+  "keywords": ["pi-package"],
+  "pi": { "extensions": ["./capsule-tools.ts"] },
+  "files": ["capsule-tools.ts", "README.md"],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": { "optional": true },
+    "@earendil-works/pi-tui": { "optional": true }
+  }
+}
+```
+
+要点：
+- **`keywords` 含 `pi-package`** 才能进官方画廊 [pi.dev/packages](https://pi.dev/packages)。
+- **`pi` 字段**指定资源路径；不用它的话得走约定目录名（`extensions/` `skills/` `prompts/` `themes/`）。
+- **`.ts` 可以直接发**：pi 用 jiti 加载，实测无需编译成 `.js`。
+- 去掉 `private: true`（有它发布会被拒）。
+
+### 2. 依赖：host 包必须放 peerDependencies
+
+pi 自带这 5 个（扩展可直接 import）：
+
+```
+@earendil-works/pi-ai
+@earendil-works/pi-agent-core
+@earendil-works/pi-coding-agent
+@earendil-works/pi-tui
+typebox
+```
+
+**必须放 `peerDependencies`（`"*"`），绝不能放 `dependencies`。**
+放进 dependencies 会物理拷一份、**绕过 pi 的扩展模块映射**，产生重复的类与注册表，pi 会报扩展警告。
+
+自有运行时依赖放 `dependencies`，pi 安装时自动装。
+
+### 3. 安装 / 卸载
+
+```bash
+pi install npm:pi-capsule-tools   # npm
+pi install ./local/path           # 本地目录（开发中）
+pi install git:github.com/u/r@v1  # git
+pi list                           # 查看
+pi remove npm:pi-capsule-tools    # 卸载
+pi -e npm:pi-capsule-tools        # 单次试用，不写 settings
+```
+
+默认写 `~/.pi/agent/settings.json`（全局）；`--local` 写项目 `.pi/settings.json`（需项目信任）。
+
+### 4. 发布流程
+
+```bash
+npm version patch    # 自动 commit + 打 tag。别手改 package.json 的 version
+npm run pack:check   # npm pack --dry-run，预览产物
+npm publish
+```
+
+`pack:check` 加进 scripts：
+
+```json
+"pack:check": "npm pack --dry-run"
+```
+
+## 验证
+```bash
+npm run pack:check      # 产物只应含声明的文件，不该有 node_modules / 测试文件
+pi list                 # 确认装上了
+```
+
+**发布后必做**：确认扩展真的被加载（不能只看 `pi install` 成功）。
+
+```ts
+const r = loader.getExtensions();
+r.errors                                   // 必须为空
+r.extensions.find(e => e.path.includes("capsule-tools"))   // 必须存在
+```
+
+**最重要的坑（2026-10-09 实踩）**：**npm 首次发布新包名返回 `202 Accepted`，不是 201。**
+这是 npm 的 staged publishing —— 首次发布会卡在**暂存等 2FA 证明**。
+当时终端警告：
+
+```
+npm notice npm tokens that bypass 2FA are being restricted ... direct publishing.
+```
+
+`~/.npmrc` 里放 `_authToken` 的方式**正是被限制的那种**。
+修法：`npm login --auth-type=web`（浏览器完成 2FA）后再 publish。
+
+此时 `npm view <包名>` 会看到 `0.0.0-stage` 的占位包（"Temporary package placeholder
+for staged publishing"），**别慌**——正式发布后会被真实版本取代。
+
+第二次 publish 若报 `409 Cannot publish over previously staged version`，
+换个版本号绕过：`npm version patch && npm publish`。
+
+## 关联连接
+- [[pi-tool-renderer-override]] — 发布前先保证渲染器真的接管了
+- [[test-handmade-data-hides-key-mismatch]] — 发布前的门禁测试别用手造数据
+- [[fanchao]] — 本页沉淀者

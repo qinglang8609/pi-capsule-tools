@@ -47,4 +47,5 @@ node --experimental-strip-types resolve-check.ts   # 18 项
 - [[tui-line-width-limit]] — 接管成功后紧接着的第二道坎：渲染行不能超宽
 - [[pi-call-result-double-row]] — 第三个坑：call/result 各画一次 = 重复行
 - [[test-handmade-data-hides-key-mismatch]] — 第四个坑：渲染器接管了，但读的字段名是猜的
+- [[publish-pi-package-to-npm]] — 前面四坑跨完后，怎么把它发成标准 npm 包
 - [[fanchao]] — 本页沉淀者
