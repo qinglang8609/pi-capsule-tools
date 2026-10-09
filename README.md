@@ -6,7 +6,7 @@
 ▸ bash   git status --short
 ▸ read   src/index.ts:1-50
 ▸ edit   src/foo.ts  +12 -3
-▸ bash   npm test  exit 1
+▸ bash   npm test  failed
 ```
 
 展开后（`ctrl+o`）：
@@ -22,16 +22,10 @@
 ## 安装
 
 ```bash
-pi install npm:pi-capsule-tools     # 发布后
+pi install npm:pi-capsule-tools
 ```
 
-开发中（本仓库）：
-
-```bash
-pi install ./                       # 本地路径，每次改完自动读到最新代码
-```
-
-然后在 pi 里 `/reload`。
+然后 `/reload`。装的路径是 `~/.pi/agent/npm/node_modules/pi-capsule-tools/`。
 
 卸载：
 
@@ -39,8 +33,24 @@ pi install ./                       # 本地路径，每次改完自动读到最
 pi remove npm:pi-capsule-tools
 ```
 
-> 别用「拷 `capsule-tools.ts` 到 `~/.pi/agent/extensions/`」的旧方式 —— 那份副本没有包身份，
-> 会和 npm 包**同时加载**，两份胶囊渲染器叠在一起。
+### 开发中（本仓库）
+
+```bash
+pi install ./        # 本地路径指向仓库，改完直接生效
+```
+
+本地路径写进 `settings.json`，`pi list` 解析成绝对路径。
+
+### 别用 cp 方式
+
+「拷 `capsule-tools.ts` 到 `~/.pi/agent/extensions/`」已弃用 —— 那份副本**没有包身份**，
+pi 靠包名/路径去重，cp 版去不掉。两份同时加载会让**每个工具调用出现两层胶囊**。
+
+若之前 cp 过，先删掉再装：
+
+```bash
+rm ~/.pi/agent/extensions/capsule-tools.ts
+```
 
 ## 覆盖范围
 
