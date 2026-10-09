@@ -3,69 +3,108 @@
 把 pi 的工具调用渲染成**一行绿色胶囊**，`ctrl+o` 展开/折叠。
 
 ```
-▸ bash  git status --short
-▸ read  src/index.ts:1-50
-▸ edit  src/foo.ts  +12 -3
-▸ bash  npm test  exit 1
+▸ bash   git status --short
+▸ read   src/index.ts:1-50
+▸ edit   src/foo.ts  +12 -3
+▸ bash   npm test  exit 1
 ```
 
 展开后（`ctrl+o`）：
 
 ```
-▾ bash  git status --short
+▾ bash   git status --short
   M src/foo.ts
   ?? src/bar.ts
 ```
 
+折叠态一行只占一个终端行，长的 bash / read 输出不展开就不占地方。
+
 ## 安装
 
 ```bash
-cp capsule-tools.ts ~/.pi/agent/extensions/
+pi install npm:pi-capsule-tools     # 发布后
 ```
 
-然后在 pi 里 `/reload`。删除该文件即可完全还原。
+开发中（本仓库）：
+
+```bash
+pi install ./                       # 本地路径，每次改完自动读到最新代码
+```
+
+然后在 pi 里 `/reload`。
+
+卸载：
+
+```bash
+pi remove npm:pi-capsule-tools
+```
+
+> 别用「拷 `capsule-tools.ts` 到 `~/.pi/agent/extensions/`」的旧方式 —— 那份副本没有包身份，
+> 会和 npm 包**同时加载**，两份胶囊渲染器叠在一起。
 
 ## 覆盖范围
 
-- **内置工具**：bash、read、edit、write、grep、find、ls —— 胶囊渲染。**执行逻辑完全不碰**（本扩展不调用 `registerTool`）。
-- **其他工具**（mcp、其他扩展的工具）：**不动**，保留它们自己的渲染。
+- **内置工具**：bash、powershell、read、edit、write、grep、find、ls —— 胶囊渲染。**执行逻辑完全不碰**。
+- **其他工具**（MCP、其他扩展的工具）：**不动**，保留它们自己的渲染。
 
-## 为什么用 `registerToolRenderer` 而不是 `registerTool`
+## 各工具显示什么
 
-这是踩过的坑，改动前先看这段：
+| 工具 | 头部 | 尾部 |
+|---|---|---|
+| `bash` | 命令首行 | `failed`（命令返回非 0 时） |
+| `powershell` | 同 `bash`（pi 里两者共用一套渲染） | `failed` |
+| `read` | 路径 + `:起-止` 行号 | — |
+| `edit` | 路径 | `+新增 -删除`（从 diff 数） |
+| `write` | 路径 | — |
+| `grep` | 搜索模式 | — |
+| `find` | 模式 / 路径 | — |
+| `ls` | 路径 | — |
 
-`registerTool()` 用同名工具覆盖内置定义，**渲染上不赢**。原因是 pi 的交互模式这样取渲染器
-（`interactive-mode.js:1706`）：
+运行中会显示 `running…` / `reading…` 之类的状态尾。
 
-```js
-resolveToolRenderers(name, () => withBuiltInRenderers(name, this.session.getToolDefinition(name)))
+## 发布
+
+```bash
+npm version patch    # 自动打 tag。别手改 package.json 的 version
+npm run pack:check   # 预览产物（只应含 capsule-tools.ts + README.md）
+npm publish
 ```
 
-最外层又套了一次 `withBuiltInRenderers`，把你通过 `registerTool` 塞进去的 `renderCall` 盖掉了。
-症状：扩展加载成功、7 个工具都注册了、零报错，**但画面上一点变化都没有**。
+`keywords` 里的 `pi-package` 让包能被 [Pi 包画廊](https://pi.dev/packages) 发现。
 
-`registerToolRenderer` 是 `resolveToolRenderers` 里的**第一环**，跑在那个内置包装之前，所以能真的接管。
+发布后 `npm view` 有缓存延迟，必要时 `npm cache clean --force` 再验。
 
-另外注意解析器的返回值语义：返回 `{}` **不等于“什么都不做”**，而是“我提供渲染器”——它会阻止链继续往下走，
-把下游结果一起吞掉。未知工具必须 `return next()` 显式透传。
+### 依赖约定
 
-## 要点
-
-- 胶囊头部**必然只占一行**：pi 的 TUI 在渲染行超过终端宽度时会抛异常（`crashes.json` 里就有这种记录），所以 `Capsule` 自己截断，宽度越窄截得越狠。
-- `renderShell: "self"` 关掉 pi 默认的工具方框，否则胶囊外面还会套一层框。
-- 展开状态由 pi 的 `expanded` 标志驱动，当前绑定在 `ctrl+o`。
+pi 自带 `@earendil-works/pi-coding-agent` / `pi-tui` / `pi-ai` / `pi-agent-core` / `typebox`，
+所以它们必须放在 **`peerDependencies`**，**不能进 `dependencies`** —— 放进 dependencies 会物理拷一份、
+绕过 pi 的扩展模块映射，产生重复的类与注册表。
 
 ## 测试
 
 ```bash
-node --experimental-strip-types check.ts          # 27 项：宽度/折行/缓存
-node --experimental-strip-types resolve-check.ts  # 18 项：渲染器真的接管了吗
+npm run check        # 全量
+npm run typecheck    # tsc --strict
 ```
 
-`resolve-check.ts` 是关键那个 —— 它按 pi 的方式走一遍解析器链，断言 7 个内置工具都落到胶囊渲染器上，
-且未知工具正确透传。**“没效果”这类回归只有它能拦住。**
+单独跑：
+
+```bash
+node --experimental-strip-types check.ts           # 宽度/折行/缓存
+node --experimental-strip-types rows-check.ts      # 双行 bug + 工具名头
+node --experimental-strip-types resolve-check.ts   # 渲染器真的接管了吗
+node --experimental-strip-types real-data-check.ts # 用真实工具结果测
+```
+
+`resolve-check.ts` 是关键那个 —— 它按 pi 的方式走一遍解析器链，断言内置工具都落到胶囊渲染器上，
+且未知工具正确透传。**「改了但没效果」这类回归只有它能拦住。**
+
+`real-data-check.ts` 用 pi 真实工具的 `execute()` 输出来断言。其余测试的结果对象都是手造的，
+所以一旦胶囊读了 pi 根本不设的键（历史上读过 `details.exitCode` 和 `details.addedLines`），
+**测试和实现会一起猜错、一直绿**。新加的显示逻辑请往这里加断言。
 
 ## 已知限制
 
-- **鼠标点击展开做不到（当前配置下）**。pi 的 regular 模式把鼠标事件交给终端，组件收不到点击。只有 `tuiMode: "fullscreen"` 才会把事件路由给组件（`MouseRegion`），代价是失去终端原生滚动回看。
+- **鼠标点击展开做不到（当前配置下）**。pi 的 regular 模式把鼠标事件交给终端，组件收不到点击。
+  只有 `tuiMode: "fullscreen"` 才会把事件路由给组件（`MouseRegion`），代价是失去终端原生滚动回看。
 - 展开/折叠用 pi 的 `expanded` 标志，当前绑在 **`ctrl+o`**。

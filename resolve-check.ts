@@ -38,7 +38,7 @@ const base = () => ({ renderCall: () => "BUILTIN", renderResult: () => "BUILTIN"
 const resolve = (i: number, name: string) =>
 	i < resolvers.length ? resolvers[i](name, () => resolve(i + 1, name)) : base();
 
-for (const name of ["bash", "read", "edit", "write", "grep", "find", "ls"]) {
+for (const name of ["bash", "powershell", "read", "edit", "write", "grep", "find", "ls"]) {
 	const renderers = resolve(0, name) as any;
 	check(`${name}: capsule renderer wins`, typeof renderers?.renderCall === "function");
 	check(`${name}: renderShell is self`, renderers?.renderShell === "self");

@@ -57,5 +57,16 @@ const at10 = capsule.render(10);
 check("width change re-renders", visibleWidth(at40[0]) !== visibleWidth(at10[0]));
 check("cached render is stable", capsule.render(10)[0] === at10[0]);
 
+// A caller mutating the returned array must not poison the cache.
+const cached = new Capsule("head");
+const first = cached.render(80);
+first.push("injected");
+check(
+	"mutating the returned array does not poison the cache",
+	cached.render(80).length === first.length - 1,
+	`got ${JSON.stringify(cached.render(80))}`,
+);
+check("returned arrays are copies", cached.render(80) !== cached.render(80));
+
 console.log(failures === 0 ? "\nall checks passed" : `\n${failures} check(s) failed`);
 process.exit(failures === 0 ? 0 : 1);
