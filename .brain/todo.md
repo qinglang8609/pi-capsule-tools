@@ -1,12 +1,15 @@
 # 📋 Todo Board
 
 ## Todo
-- [ ] [搁置] fix-todo-panel-jitter [[fanchao]] — 改全局 ~/.pi/agent/extensions/abs.ts：todo 面板 aboveEditor → belowEditor，避开 pi 工作指示器占用的 status 行。改完需 /reload 看效果 (认领 2026-10-09 01a120e4-953c-76)
-- [ ] [进行中] publish-to-github [[fanchao]] — 推 pi-capsule-tools 到 GitHub（qinglang8609/pi-capsule-tools）：配 remote、补 package.json 链接字段、推 main + tag v1.0.1 (认领 2026-10-09 01a120e4-953c-76)
 
 ## Done
 
+### 2026-10-10
+- [x] tool-call-animation [[fanchao]] — 为 bash/read/edit 工具调用加动效：运行中字符动画、失败红色 — 工具行加动效：运行中转轮、失败红箭头；经验沉淀到 pi-tool-renderer-animation 【落地】 (完成 2026-10-10 01a12608-4ed4-73)
+
 ### 2026-10-09
+- [x] fix-todo-panel-jitter [[fanchao]] — 改全局 ~/.pi/agent/extensions/abs.ts：todo 面板 aboveEditor → belowEditor，避开 pi 工作指示器占用的 status 行。改完需 /reload 看效果 — belowEditor 实测不行（输入框被挤上去），已还原 【否决】 (完成 2026-10-09 01a120e4-953c-76)
+- [x] publish-to-github [[fanchao]] — 推 pi-capsule-tools 到 GitHub（qinglang8609/pi-capsule-tools）：配 remote、补 package.json 链接字段、推 main + tag v1.0.1 — 已推 GitHub：main + tag v1.0.1 【落地】 (完成 2026-10-09 01a120e4-953c-76)
 - [x] package-for-npm-release [[fanchao]] — 把 pi-capsule-tools 改造成标准 pi 包可发 npm：pi 字段 + peerDependencies（5 个 host 包）+ keywords pi-package + files + publishConfig；挂载方式从手动 cp 改成 pi install npm:；照搬 agent_brain_sync 发布流程（npm version patch → pack:check → publish） — 已发 npm 1.0.1，本地 npm 安装实测通过 【落地】 (完成 2026-10-09 01a120e4-953c-76)
 - [x] write-audit-findings-page [[fanchao]] — 把「手造测试数据 → 实现与测试一起猜错」这条经验落成概念页，并修正 audit-whole-project 状态 — 经验落成概念页 + 图谱 lint 干净 【落地】 (完成 2026-10-09 01a120e4-953c-76)
 - [x] audit-whole-project [[fanchao]] — 全面审查 pi-capsule-tools：胶囊渲染正确性、边界情况、测试覆盖漏洞、可维护性、与 pi 内部 API 耦合风险 — 审查完成，5 项已修并反向验证 【落地】 (完成 2026-10-09 01a120e4-953c-76)

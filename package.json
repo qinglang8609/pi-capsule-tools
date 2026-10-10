@@ -34,7 +34,7 @@
     "README.md"
   ],
   "scripts": {
-    "check": "node --experimental-strip-types check.ts && node --experimental-strip-types rows-check.ts && node --experimental-strip-types resolve-check.ts && node --experimental-strip-types real-data-check.ts",
+    "check": "node --experimental-strip-types check.ts && node --experimental-strip-types rows-check.ts && node --experimental-strip-types resolve-check.ts && node --experimental-strip-types real-data-check.ts && node --experimental-strip-types animation-check.ts",
     "typecheck": "tsc --noEmit --skipLibCheck --module nodenext --moduleResolution nodenext --target es2022 --strict capsule-tools.ts",
     "pack:check": "npm pack --dry-run"
   },

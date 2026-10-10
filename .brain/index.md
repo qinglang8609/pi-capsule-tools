@@ -6,6 +6,7 @@
 
 ## Concepts
 - [[pi-tool-renderer-override]] — pi 扩展接管内置工具渲染的正确姿势
+- [[pi-tool-renderer-animation]] — 给工具行加转轮/失败变红：`lastComponent` 按行分开、导出会漏定时器
 - [[tui-line-width-limit]] — pi TUI 渲染行超宽会抛异常
 - [[pi-call-result-double-row]] — renderCall 和 renderResult 各画一次 = 每行重复
 - [[test-handmade-data-hides-key-mismatch]] — 手造测试数据会让实现与测试一起猜错键名

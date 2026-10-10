@@ -18,6 +18,10 @@ import { homedir } from "node:os";
 const COLLAPSED = "▸";
 const EXPANDED = "▾";
 
+// Braille spinner shown in place of the arrow while a tool is still running.
+const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+const SPINNER_INTERVAL_MS = 90;
+
 export function shortenPath(path: string): string {
 	const home = homedir();
 	// The separator matters: `/Users/me-other` must not become `~-other`.
@@ -39,7 +43,7 @@ function firstLine(text: string, max = 120): string {
  * be truncated here instead of relying on wrapping.
  */
 export class Capsule implements Component {
-	private readonly head: string;
+	private head: string;
 	private readonly body: string | undefined;
 	private cachedWidth: number | undefined;
 	private cachedLines: string[] | undefined;
@@ -47,6 +51,12 @@ export class Capsule implements Component {
 	constructor(head: string, body?: string) {
 		this.head = head;
 		this.body = body;
+	}
+
+	protected setHead(head: string): void {
+		if (head === this.head) return;
+		this.head = head;
+		this.invalidate();
 	}
 
 	render(width: number): string[] {
@@ -72,15 +82,20 @@ export class Capsule implements Component {
  * — all three render as a bare path. Pi's own built-in renderers all use the
  * same `toolTitle` + bold name shape, so the capsule matches them.
  */
+type Tone = "success" | "error" | "running";
+
 function capsuleLine(
 	theme: any,
 	arrow: string,
 	toolName: string,
 	command: string,
 	reason?: string,
+	tone: Tone = "success",
 ): string {
-	const head = theme.fg("success", arrow);
-	const name = theme.fg("toolTitle", theme.bold(toolName));
+	// A failed call colors only the arrow and the tool name; the command stays
+	// green so the red reads as a status mark rather than a wall of color.
+	const head = theme.fg(tone === "error" ? "error" : tone === "running" ? "accent" : "success", arrow);
+	const name = theme.fg(tone === "error" ? "error" : "toolTitle", theme.bold(toolName));
 	const cmd = theme.fg("success", theme.bold(command));
 	const tail = reason ? theme.fg("dim", `  ${reason}`) : "";
 	return `${head} ${name}  ${cmd}${tail}`;
@@ -92,8 +107,79 @@ function capsule(
 	toolName: string,
 	command: string,
 	reason?: string,
+	tone: Tone = "success",
 ): Component {
-	return new Capsule(capsuleLine(theme, arrow, toolName, command, reason));
+	return new Capsule(capsuleLine(theme, arrow, toolName, command, reason, tone));
+}
+
+/**
+ * A capsule that animates while the tool runs: it redraws itself on a timer and
+ * advances the spinner one frame per tick.
+ *
+ * The timer starts lazily on the first render (there is no other hook), and
+ * the result row stops it the moment the tool finishes, so redraws only cost
+ * anything while a tool is actually running. `invalidate()` is pi's own
+ * "redraw this row" hook — it comes from the render context.
+ */
+export class RunningCapsule extends Capsule {
+	private makeLine: (frame: string, tone: Tone) => string;
+	private requestRedraw: () => void;
+	private timer: ReturnType<typeof setInterval> | undefined;
+	private frame = 0;
+	private running = true;
+
+	constructor(makeLine: (frame: string, tone: Tone) => string, requestRedraw: () => void) {
+		super(makeLine(SPINNER[0]!, "running"));
+		this.makeLine = makeLine;
+		this.requestRedraw = requestRedraw;
+	}
+
+	/**
+	 * Re-point a live capsule at the current theme/args and redraw hook. Pi
+	 * re-runs renderCall on every redraw, so this is how one capsule survives the
+	 * whole call instead of a new timer being born on each frame.
+	 */
+	update(makeLine: (frame: string, tone: Tone) => string, ctx?: { invalidate?: () => void }): void {
+		this.makeLine = makeLine;
+		if (ctx?.invalidate) this.requestRedraw = () => ctx.invalidate?.();
+		this.setHead(
+			this.makeLine(this.running ? this.frameText() : COLLAPSED, this.running ? "running" : "success"),
+		);
+	}
+
+	override render(width: number): string[] {
+		// Only a live call animates — a stopped row must not restart the timer.
+		if (this.running && this.timer === undefined) this.start();
+		return super.render(width);
+	}
+
+	/**
+	 * Stop the timer and repaint for the outcome: the arrow returns (a frozen
+	 * spinner glyph reads as "still thinking"), colored red when the tool failed.
+	 * Safe to call repeatedly.
+	 */
+	stop(failed = false): void {
+		if (!this.running) return;
+		this.running = false;
+		if (this.timer !== undefined) clearInterval(this.timer);
+		this.timer = undefined;
+		this.setHead(this.makeLine(COLLAPSED, failed ? "error" : "success"));
+	}
+
+	private start(): void {
+		this.timer = setInterval(() => {
+			this.frame++;
+			this.setHead(this.makeLine(this.frameText(), "running"));
+			this.requestRedraw();
+		}, SPINNER_INTERVAL_MS);
+		// Node keeps a timer alive; an unref'd timer cannot hold the process open
+		// if the session ends while a tool is still running.
+		this.timer.unref?.();
+	}
+
+	private frameText(): string {
+		return SPINNER[this.frame % SPINNER.length]!;
+	}
 }
 
 /**
@@ -243,11 +329,32 @@ export default function (pi: ExtensionAPI) {
 		if (!known) return next();
 		return {
 			renderShell: "self" as const,
-			renderCall(args: any, theme: any) {
-				return capsuleCallRow(theme, toolName, args, undefined, "call");
+			renderCall(args: any, theme: any, ctx: any) {
+				const describe = detailsOf(toolName)!;
+				const { command, reason } = describe(args, undefined, "call");
+				const makeLine = (frame: string, tone: Tone) =>
+					capsuleLine(theme, frame, toolName, command, reason, tone);
+
+				// Pi's updateDisplay() re-runs renderCall on EVERY redraw and replaces
+				// whatever it returns. Returning a fresh capsule each time would spawn
+				// a new timer per frame — and because our own tick calls invalidate(),
+				// that is a self-feeding loop that snowballs (measured: 64 live timers
+				// and climbing within 600ms). Reuse the live component, exactly like
+				// pi's own renderers do with `context.lastComponent`.
+				const previous = ctx?.lastComponent;
+				if (previous instanceof RunningCapsule) {
+					previous.update(makeLine, ctx);
+					return previous;
+				}
+
+				// HTML export passes a no-op invalidate; the result row stops the timer
+				// either way (see renderResult).
+				const row = new RunningCapsule(makeLine, () => ctx?.invalidate?.());
+				if (ctx?.state) ctx.state.capsule = row;
+				return row;
 			},
 			renderResult(result: any, { expanded, isPartial }: any, theme: any, ctx: any) {
-				return capsuleResultRow(
+				const row = capsuleResultRow(
 					theme,
 					toolName,
 					ctx.args,
@@ -256,6 +363,15 @@ export default function (pi: ExtensionAPI) {
 					isPartial ? "partial" : undefined,
 					ctx.isError,
 				);
+				// The call row owns the spinner; the result row ends it. HTML export
+				// always reports isPartial:false, so this also stops the export's timer
+				// — an unstopped one would spin forever with nothing left to render.
+				settleRunningRow(ctx?.state?.capsule, {
+					isError: ctx.isError,
+					expanded,
+					settled: !isPartial || ctx.isError,
+				});
+				return row;
 			},
 		};
 	});
@@ -264,6 +380,46 @@ export default function (pi: ExtensionAPI) {
 // --- row builders ---------------------------------------------------------
 // Exported so rows-check.ts asserts against the same code the resolver uses.
 
+/**
+ * The animated `⠋ tool command` line for a call that is still running.
+ *
+ * `invalidate` comes from the render context (pi's per-row redraw hook). It is
+ * optional so the exported row builders stay callable from tests.
+ */
+export function runningRow(
+	theme: any,
+	toolName: string,
+	command: string,
+	reason: string | undefined,
+	ctx?: { invalidate?: () => void; isError?: boolean },
+): Component {
+	if (ctx?.isError) return capsule(theme, COLLAPSED, toolName, command, reason, "error");
+	const invalidate = ctx?.invalidate;
+	if (!invalidate) return capsule(theme, COLLAPSED, toolName, command, reason, "running");
+	return new RunningCapsule(
+		(frame, tone) => capsuleLine(theme, frame, toolName, command, reason, tone),
+		invalidate,
+	);
+}
+
+/**
+ * Stop an animated call row once its result has arrived. A failure repaints the
+ * arrow and tool name red; a success keeps the frame it already shows so the
+ * line does not jump.
+ *
+ * `settled` mirrors pi's own bash renderer: a completed result or an error ends
+ * the work, even if `isPartial` is still set. Expanded rows are left alone — the
+ * open output matters more than the color.
+ */
+export function settleRunningRow(
+	last: any,
+	opts: { isError?: boolean; expanded?: boolean; settled?: boolean },
+): void {
+	if (opts.expanded) return;
+	if (opts.settled === false) return;
+	if (last instanceof RunningCapsule) last.stop(Boolean(opts.isError));
+}
+
 /** The `▸ tool command` line drawn when the call starts. */
 export function capsuleCallRow(
 	theme: any,
@@ -271,12 +427,16 @@ export function capsuleCallRow(
 	args: any,
 	result: any,
 	phase: "call" | "partial" | "done",
-	ctx?: { isError?: boolean },
+	ctx?: { isError?: boolean; invalidate?: () => void },
 ): Component {
 	const describe = detailsOf(toolName);
 	if (!describe) return new Text("", 0, 0);
 	const { command, reason } = describe(args, result, phase, ctx);
-	return capsule(theme, COLLAPSED, toolName, command, reason);
+	// Only a live call animates; a settled row keeps a fixed arrow.
+	if (phase === "call" || phase === "partial") {
+		return runningRow(theme, toolName, command, reason, ctx);
+	}
+	return capsule(theme, COLLAPSED, toolName, command, reason, ctx?.isError ? "error" : "success");
 }
 
 /**
