@@ -88,12 +88,81 @@ async function main() {
 		check("double stop does not restart the timer", redraws === afterFirst, `${afterFirst} -> ${redraws}`);
 	}
 
+	// --- the spinner is green, and a failure is red only where intended ------
+	// Drives the REAL resolver, not a hand-written makeLine: an earlier version
+	// of this block re-implemented the color choice, so it happily passed while
+	// the product rendered the spinner in the wrong color.
+	{
+		const pi = { registerToolRenderer: (fn: any) => { (pi as any).resolver = fn; } };
+		(await import("./capsule-tools.ts")).default(pi as any);
+		const renderers = (pi as any).resolver("bash", () => undefined);
+		const theme = recordingTheme();
+
+		const makeCtx = (state: any, isError = false) => ({
+			args: { command: "exit 1" },
+			toolCallId: "t",
+			invalidate: () => {},
+			lastComponent: undefined,
+			state,
+			cwd: ".",
+			executionStarted: true,
+			argsComplete: true,
+			isPartial: true,
+			expanded: false,
+			showImages: false,
+			isError,
+			durationMs: undefined,
+			outputPad: 1,
+		});
+
+		// Running: spinner and tool name follow the capsule's green.
+		const runCtx = makeCtx({});
+		const running = renderers.renderCall({ command: "exit 1" }, theme, runCtx);
+		running.render(80);
+		const spinnerTokens = theme.seen
+			.filter((s) => SPINNER_FRAMES.includes(s.text))
+			.map((s) => s.token);
+		check(
+			"spinner is drawn",
+			spinnerTokens.length > 0,
+			JSON.stringify(theme.seen),
+		);
+		check(
+			"spinner is green, not accent",
+			spinnerTokens.every((t) => t === "success"),
+			`tokens: ${JSON.stringify(spinnerTokens)}`,
+		);
+		(running as RunningCapsule).stop();
+
+		// Failed: exactly the arrow and tool name go red.
+		const failTheme = recordingTheme();
+		const failCtx = makeCtx({}, true);
+		const failRow: any = renderers.renderCall({ command: "exit 1" }, failTheme, failCtx);
+		failRow.render(80);
+		failTheme.seen.length = 0;
+		failRow.stop(true);
+
+		const red = failTheme.seen.filter((s) => s.token === "error").map((s) => s.text);
+		check("failed row colors the arrow red", red.includes(ARROW), JSON.stringify(failTheme.seen));
+		check(
+			"failed row drops the spinner for the arrow",
+			!SPINNER_FRAMES.some((g) => red.includes(g)),
+			JSON.stringify(red),
+		);
+		check("failed row colors the tool name red", red.includes("bash"), JSON.stringify(failTheme.seen));
+		check(
+			"failed row never paints the command red",
+			!red.includes("exit 1"),
+			JSON.stringify(red),
+		);
+	}
+
 	// --- failed tools turn red, and only where intended ----------------------
 	{
 		const theme = recordingTheme();
 		const capsule = new RunningCapsule(
 			(frame, tone) =>
-				`${theme.fg(tone === "error" ? "error" : "accent", frame)} ${theme.fg(
+				`${theme.fg(tone === "error" ? "error" : "success", frame)} ${theme.fg(
 					tone === "error" ? "error" : "toolTitle",
 					"bash",
 				)} ${theme.fg("success", "exit 1")}`,
@@ -104,15 +173,15 @@ async function main() {
 		capsule.stop(true);
 
 		const errorTokens = theme.seen.filter((s) => s.token === "error").map((s) => s.text);
-		check("failed row colors the arrow red", errorTokens.includes(ARROW), JSON.stringify(theme.seen));
+		check("stop(true) colors the arrow red", errorTokens.includes(ARROW), JSON.stringify(theme.seen));
 		check(
-			"failed row drops the spinner for the arrow",
+			"stop(true) drops the spinner for the arrow",
 			!SPINNER_FRAMES.some((g) => errorTokens.includes(g)),
 			JSON.stringify(errorTokens),
 		);
-		check("failed row colors the tool name red", errorTokens.includes("bash"), JSON.stringify(theme.seen));
+		check("stop(true) colors the tool name red", errorTokens.includes("bash"), JSON.stringify(theme.seen));
 		check(
-			"failed row keeps the command green",
+			"stop(true) keeps the command green",
 			theme.seen.some((s) => s.token === "success" && s.text === "exit 1"),
 			JSON.stringify(theme.seen),
 		);

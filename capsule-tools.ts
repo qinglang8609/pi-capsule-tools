@@ -82,7 +82,8 @@ export class Capsule implements Component {
  * — all three render as a bare path. Pi's own built-in renderers all use the
  * same `toolTitle` + bold name shape, so the capsule matches them.
  */
-type Tone = "success" | "error" | "running";
+/** A capsule is green normally; only a failure turns it red. */
+type Tone = "success" | "error";
 
 function capsuleLine(
 	theme: any,
@@ -94,7 +95,7 @@ function capsuleLine(
 ): string {
 	// A failed call colors only the arrow and the tool name; the command stays
 	// green so the red reads as a status mark rather than a wall of color.
-	const head = theme.fg(tone === "error" ? "error" : tone === "running" ? "accent" : "success", arrow);
+	const head = theme.fg(tone === "error" ? "error" : "success", arrow);
 	const name = theme.fg(tone === "error" ? "error" : "toolTitle", theme.bold(toolName));
 	const cmd = theme.fg("success", theme.bold(command));
 	const tail = reason ? theme.fg("dim", `  ${reason}`) : "";
@@ -129,7 +130,7 @@ export class RunningCapsule extends Capsule {
 	private running = true;
 
 	constructor(makeLine: (frame: string, tone: Tone) => string, requestRedraw: () => void) {
-		super(makeLine(SPINNER[0]!, "running"));
+		super(makeLine(SPINNER[0]!, "success"));
 		this.makeLine = makeLine;
 		this.requestRedraw = requestRedraw;
 	}
@@ -142,9 +143,7 @@ export class RunningCapsule extends Capsule {
 	update(makeLine: (frame: string, tone: Tone) => string, ctx?: { invalidate?: () => void }): void {
 		this.makeLine = makeLine;
 		if (ctx?.invalidate) this.requestRedraw = () => ctx.invalidate?.();
-		this.setHead(
-			this.makeLine(this.running ? this.frameText() : COLLAPSED, this.running ? "running" : "success"),
-		);
+		this.setHead(this.makeLine(this.running ? this.frameText() : COLLAPSED, "success"));
 	}
 
 	override render(width: number): string[] {
@@ -169,7 +168,7 @@ export class RunningCapsule extends Capsule {
 	private start(): void {
 		this.timer = setInterval(() => {
 			this.frame++;
-			this.setHead(this.makeLine(this.frameText(), "running"));
+			this.setHead(this.makeLine(this.frameText(), "success"));
 			this.requestRedraw();
 		}, SPINNER_INTERVAL_MS);
 		// Node keeps a timer alive; an unref'd timer cannot hold the process open
@@ -395,7 +394,7 @@ export function runningRow(
 ): Component {
 	if (ctx?.isError) return capsule(theme, COLLAPSED, toolName, command, reason, "error");
 	const invalidate = ctx?.invalidate;
-	if (!invalidate) return capsule(theme, COLLAPSED, toolName, command, reason, "running");
+	if (!invalidate) return capsule(theme, COLLAPSED, toolName, command, reason, "success");
 	return new RunningCapsule(
 		(frame, tone) => capsuleLine(theme, frame, toolName, command, reason, tone),
 		invalidate,

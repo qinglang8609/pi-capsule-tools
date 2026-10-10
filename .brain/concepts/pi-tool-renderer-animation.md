@@ -92,6 +92,24 @@ settleRunningRow(ctx?.state?.capsule, {...});     // renderResult 里停
 `stop()` 里保留当前帧的 `⠹` 看着像「还在想」，要把箭头 `▸` 换回来，失败则红色箭头。
 
 ## 怎么验证（普通单测拦不住）
+除了下面这些，还有一条**最隐蔽的测试教训**：
+
+**别在手写测试里重新实现一遍颜色逻辑。** 我写「失败变红」那组断言时，在测试里自己拼了个
+`makeLine`（`theme.fg(tone === "error" ? "error" : "accent", frame)`）——这测的是
+**测试自己写的假渲染函数**，不是产品代码。结果真实产品把转轮画成了青色，
+测试全绿，直到用户看到屏幕才报上来。
+
+**判据**：断言要跑**真实解析器**拿到的组件。产品渲染的颜色，必须从产品代码流出来：
+
+```ts
+const renderers = resolver("bash", () => undefined);   // 真实解析器
+const row = renderers.renderCall(args, recordingTheme(), ctx);
+row.render(80);
+// 现在 theme 收到的 token 才是产品真实选的颜色
+```
+
+> 反向验证：把产品改回 `accent`，断言必须 FAIL（实测确实 FAIL，报 `tokens: ["accent"]`）。
+
 以上都是「组件/定时器没被正确收尾」类问题，测渲染函数本身测不出来。要**按 pi 的调用链跑**：
 
 ```ts

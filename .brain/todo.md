@@ -1,6 +1,8 @@
 # 📋 Todo Board
 
 ## Todo
+- [ ] [进行中] push-v1.1.0 [[fanchao]] — 推送 v1.1.0 到 GitHub（3 提交 + tag），等代理可用 (认领 2026-10-10 01a12608-4ed4-73)
+  ↳ 断点: 下一步：git push origin HEAD --tags（本地 3 提交 + v1.1.0 tag）
 
 ## Done
 
