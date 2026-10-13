@@ -16,7 +16,11 @@
 - [[fanchao]] — fanchao — 使用者；技术栈 / 特点 / 名下踩过的坑
 
 ## Sources
+- [[2026-10-14-pi-capsule-tools]] — pi-capsule-tools 已装版体检方法：装的是 npm:pi-capsule-tools@1.1.1，源码与 ~/…
 
 ## Syntheses
 
 ## Sessions
+- [[log-2026-10-09]] — 2026-10-09（会话快照 + 任务归档）
+- [[log-2026-10-10]] — 2026-10-10（会话快照 + 任务归档）
+- [[log-2026-10-11]] — 2026-10-11（会话快照 + 任务归档）
