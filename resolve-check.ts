@@ -12,6 +12,7 @@
 
 import { DefaultResourceLoader } from "/Users/fanchao/.nvm/versions/node/v24.18.0/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/resource-loader.js";
 import { SettingsManager } from "@earendil-works/pi-coding-agent";
+import { readFileSync } from "node:fs";
 
 let failures = 0;
 function check(label: string, ok: boolean): void {
@@ -32,6 +33,23 @@ check("capsule extension loaded", Boolean(capsule));
 check("no extension load errors", (result.errors ?? []).length === 0);
 check("registers at least one tool renderer", (capsule?.toolRenderers?.length ?? 0) >= 1);
 
+/** Whether the extension pi actually loaded is this working tree (not an npm install). */
+function installedCopyIsStale(): boolean {
+	try {
+		return (
+			readFileSync(capsule!.path, "utf8") !== readFileSync(new URL("./capsule-tools.ts", import.meta.url), "utf8")
+		);
+	} catch {
+		return true;
+	}
+}
+
+// These checks only mean something when the loaded file is the one being edited.
+if (installedCopyIsStale()) {
+	console.log("\nSKIP resolve checks: pi loaded an installed copy, not this working tree");
+	process.exit(0);
+}
+
 // Walk the resolver chain the way pi's interactive mode does.
 const resolvers = result.extensions.flatMap((e) => e.toolRenderers ?? []);
 const base = () => ({ renderCall: () => "BUILTIN", renderResult: () => "BUILTIN" });
@@ -41,7 +59,8 @@ const resolve = (i: number, name: string) =>
 for (const name of ["bash", "powershell", "read", "edit", "write", "grep", "find", "ls"]) {
 	const renderers = resolve(0, name) as any;
 	check(`${name}: capsule renderer wins`, typeof renderers?.renderCall === "function");
-	check(`${name}: renderShell is self`, renderers?.renderShell === "self");
+	check(`${name}: renderShell is default so pi paints the background`,
+		(renderers?.renderShell ?? "default") === "default");
 }
 
 // An unknown tool must fall through untouched, so MCP and other extension

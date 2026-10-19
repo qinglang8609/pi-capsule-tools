@@ -12,14 +12,19 @@
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
-import { Text, truncateToWidth, type Component } from "@earendil-works/pi-tui";
+import { Text, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import { homedir } from "node:os";
 
 const COLLAPSED = "▸";
+/** Shared blank row: a component that draws nothing and can never be mutated. */
+const EMPTY = new Text("", 0, 0);
 const EXPANDED = "▾";
 
 // Braille spinner shown in place of the arrow while a tool is still running.
-const SPINNER = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+// Only glyphs the terminal actually has. Herdr and several macOS terminals render
+// braille (U+28xx) with a fallback font that is far wider than one cell, which
+// makes the row visibly jitter every 90ms — use the widely supported circle set.
+const SPINNER = ["◐", "◓", "◑", "◒"];
 const SPINNER_INTERVAL_MS = 90;
 
 export function shortenPath(path: string): string {
@@ -36,35 +41,72 @@ function firstLine(text: string, max = 120): string {
 }
 
 /**
- * A capsule: one line, always. The head is truncated to the available width;
- * the optional body is handed to Text, which wraps it.
+ * Elapsed time for the right edge: `12ms` while short, `1.2s` after a second,
+ * `1m05s` after a minute. Sub-second precision stops mattering quickly.
+ */
+export function formatDuration(ms: number | undefined): string | undefined {
+	if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) return undefined;
+	if (ms < 1000) return `${Math.round(ms)}ms`;
+	if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`;
+	const seconds = Math.round(ms / 1000);
+	return `${Math.floor(seconds / 60)}m${String(seconds % 60).padStart(2, "0")}s`;
+}
+
+/**
+ * A capsule: one line, always. The head and the optional `meta` label are drawn
+ * on that same line, then the body fills whatever width is left.
  *
- * Pi's TUI rejects a rendered line wider than the terminal, so the head has to
- * be truncated here instead of relying on wrapping.
+ * Pi's TUI rejects a rendered line wider than the terminal, so the line is
+ * truncated here instead of relying on wrapping.
  */
 export class Capsule implements Component {
 	private head: string;
+	private meta: string | undefined;
 	private readonly body: string | undefined;
+	/**
+	 * Set by the extension so truncated lines keep the block's background.
+	 * Assigning it must drop the cache: the background is applied at render time.
+	 */
+	get bgAnsi(): string | undefined {
+		return this.bg;
+	}
+	set bgAnsi(bg: string | undefined) {
+		if (bg === this.bg) return;
+		this.bg = bg;
+		this.invalidate();
+	}
+	private bg: string | undefined;
 	private cachedWidth: number | undefined;
 	private cachedLines: string[] | undefined;
+	private cachedBody: string[] | undefined;
 
-	constructor(head: string, body?: string) {
+	constructor(head: string, body?: string, meta?: string) {
 		this.head = head;
+		this.meta = meta;
 		this.body = body;
 	}
 
-	protected setHead(head: string): void {
-		if (head === this.head) return;
+	protected setHead(head: string, meta?: string): void {
+		if (head === this.head && meta === this.meta) return;
 		this.head = head;
+		this.meta = meta;
 		this.invalidate();
 	}
 
 	render(width: number): string[] {
 		if (this.cachedLines && this.cachedWidth === width) return [...this.cachedLines];
-		const head = truncateToWidth(this.head, Math.max(1, width - 1), "…");
-		const lines = this.body
-			? [head, ...new Text(this.body, 0, 0).render(width)]
-			: [head];
+		const head = keepBackground(capsuleHead(this.head, this.meta, width), this.bgAnsi);
+		// The body never changes after construction, so its wrapping is computed
+		// once per width instead of on every redraw — a large expanded output is
+		// re-wrapped by Text on every render otherwise.
+		if (this.cachedWidth !== width) this.cachedBody = undefined;
+		const body =
+			this.body === undefined
+				? []
+				: (this.cachedBody ??= new Text(this.body, 0, 0).render(width).map((l) =>
+						keepBackground(l, this.bgAnsi),
+					));
+		const lines = [head, ...body];
 		this.cachedWidth = width;
 		this.cachedLines = lines;
 		// A copy: pi (or any caller) mutating the returned array would poison the cache.
@@ -77,14 +119,49 @@ export class Capsule implements Component {
 	}
 }
 
+/** A capsule is green normally; only a failure turns it red. */
+type Tone = "success" | "error";
+
+/**
+ * The expanded body as two labelled blocks:
+ *
+ *   命令
+ *     <command>
+ *   结果  (12ms)
+ *     <output>
+ *
+ * Both groups are only written when they have something to show; a title with
+ * nothing under it is noise.
+ */
+export function detailBody(
+	theme: any,
+	command: string | undefined,
+	output: string | undefined,
+	title: string,
+): string | undefined {
+	const blocks: string[] = [];
+	if (command?.trim()) {
+		blocks.push(theme.fg("dim", "命令"), indent(theme, command.trim()));
+	}
+	if (output?.trim()) {
+		blocks.push(theme.fg("dim", title), indent(theme, output.trimEnd()));
+	}
+	return blocks.length ? blocks.join("\n") : undefined;
+}
+
+/** Body lines are indented so they read as belonging to their heading. */
+function indent(theme: any, text: string): string {
+	return text
+		.split("\n")
+		.map((line) => (line.trim() ? theme.fg("toolOutput", `  ${line}`) : line))
+		.join("\n");
+}
+
 /**
  * The tool name is part of the head so `read`/`write`/`ls` stay distinguishable
  * — all three render as a bare path. Pi's own built-in renderers all use the
  * same `toolTitle` + bold name shape, so the capsule matches them.
  */
-/** A capsule is green normally; only a failure turns it red. */
-type Tone = "success" | "error";
-
 function capsuleLine(
 	theme: any,
 	arrow: string,
@@ -92,6 +169,7 @@ function capsuleLine(
 	command: string,
 	reason?: string,
 	tone: Tone = "success",
+	meta?: string,
 ): string {
 	// A failed call colors only the arrow and the tool name; the command stays
 	// green so the red reads as a status mark rather than a wall of color.
@@ -99,7 +177,52 @@ function capsuleLine(
 	const name = theme.fg(tone === "error" ? "error" : "toolTitle", theme.bold(toolName));
 	const cmd = theme.fg("success", theme.bold(command));
 	const tail = reason ? theme.fg("dim", `  ${reason}`) : "";
-	return `${head} ${name}  ${cmd}${tail}`;
+	// `meta` sits at the right edge; Capsule places it, so the wrapping work is
+	// not duplicated in the tests' row builders.
+	const right = meta ? theme.fg("dim", meta) : "";
+	return `${head} ${name}  ${cmd}${tail}\x00${right}`;
+}
+
+/**
+ * The capsule's single line: `<left> … <right>`, `right` pinned to the far edge.
+ * `capsuleLine` marks the split with \x00 so a color span never straddles it.
+ */
+export function capsuleHead(left: string, right: string | undefined, width: number): string {
+	// Always strip the marker: a head without a right label must not leak the \x00.
+	const head = left.split("\x00")[0] ?? "";
+	if (!right) return truncateToWidth(head, Math.max(1, width - 1), "…");
+	const gap = width - visibleWidth(head) - visibleWidth(right);
+	if (gap < 2) {
+		// Too narrow for both: drop the label, the command is what identifies the call.
+		return truncateToWidth(head, Math.max(1, width - 1), "…");
+	}
+	return head + " ".repeat(gap) + right;
+}
+
+/**
+ * `truncateToWidth` emits a full SGR reset before the ellipsis, which also kills
+ * the background pi paints behind the row — the tail rendered bare. Re-assert
+ * the row's background after every reset so the block stays one solid color.
+ *
+ * `bgAnsi` comes from `theme.getBgAnsi(bg)`; without it (no background pinning)
+ * the line is left exactly as pi truncates it.
+ */
+export function keepBackground(line: string, bgAnsi: string | undefined): string {
+	if (!bgAnsi || !line.includes("\x1b[0m")) return line;
+	return line.split("\x1b[0m").join(`\x1b[0m${bgAnsi}`);
+}
+
+/**
+ * The background pi paints behind every tool row. Mirroring it inside the
+ * capsule keeps truncated lines colored: `truncateToWidth` emits a full SGR
+ * reset before the ellipsis, which would otherwise punch a bare hole in the row.
+ */
+function blockBg(theme: any, ctx?: { isError?: boolean }): string | undefined {
+	try {
+		return theme?.getBgAnsi?.(ctx?.isError ? "toolErrorBg" : "toolSuccessBg");
+	} catch {
+		return undefined;
+	}
 }
 
 function capsule(
@@ -109,8 +232,9 @@ function capsule(
 	command: string,
 	reason?: string,
 	tone: Tone = "success",
+	meta?: string,
 ): Component {
-	return new Capsule(capsuleLine(theme, arrow, toolName, command, reason, tone));
+	return new Capsule(capsuleLine(theme, arrow, toolName, command, reason, tone, meta), undefined, meta);
 }
 
 /**
@@ -186,8 +310,9 @@ export class RunningCapsule extends Capsule {
  * for this tool call, and drawing a second one doubled every row. Pi keeps the
  * call and result rows separate, so the detail only appears once expanded.
  *
- * The body carries the reason (exit code and similar) on its first line so the
- * information is not lost, only deferred.
+ * Expanded it is body only. The call row above already shows `▾ tool command`,
+ * and the body repeats the full command under the `命令` heading — drawing a
+ * head here printed the command twice.
  */
 function capsuleResult(
 	theme: any,
@@ -200,26 +325,13 @@ function capsuleResult(
 ): Component {
 	if (!expanded) return new Text("", 0, 0);
 
-	const lines: string[] = [];
-	const notice = reason ?? partialReason;
-	if (notice) lines.push(theme.fg("dim", notice));
-
-	const body = (Array.isArray(result?.content) ? result.content : [])
+	const output = (Array.isArray(result?.content) ? result.content : [])
 		.filter((c: any) => c?.type === "text")
 		.map((c: any) => c.text)
-		.join("\n")
-		.trim();
-	if (body) {
-		lines.push(
-			...body.split("\n").map((line: string) => theme.fg("toolOutput", line)),
-		);
-	}
+		.join("\n");
 
-	// The capsule head is repeated so the expanded block still says what ran.
-	return new Capsule(
-		capsuleLine(theme, EXPANDED, toolName, command),
-		lines.length ? lines.join("\n") : undefined,
-	);
+	const label = `结果${reason ? `  ${reason}` : partialReason ? `  ${partialReason}` : ""}`;
+	return new Capsule("", detailBody(theme, command, output, label));
 }
 
 /**
@@ -327,12 +439,17 @@ export default function (pi: ExtensionAPI) {
 		// falls through to the next resolver.
 		if (!known) return next();
 		return {
-			renderShell: "self" as const,
+			// Default shell on purpose: pi wraps the whole tool row in a Box that
+			// fills it with toolSuccessBg/toolErrorBg. `renderShell: "self"` skips
+			// that wrapper and the capsule loses its green background.
+			renderShell: "default" as const,
 			renderCall(args: any, theme: any, ctx: any) {
-				const describe = detailsOf(toolName)!;
-				const { command, reason } = describe(args, undefined, "call");
+				const { command, reason } = known(args, undefined, "call", ctx);
+				// Pi's execution timer only exists once the tool has finished.
+				const meta = formatDuration(ctx?.durationMs);
+				const bg = blockBg(theme, ctx);
 				const makeLine = (frame: string, tone: Tone) =>
-					capsuleLine(theme, frame, toolName, command, reason, tone);
+					capsuleLine(theme, frame, toolName, command, reason, tone, meta);
 
 				// Pi's updateDisplay() re-runs renderCall on EVERY redraw and replaces
 				// whatever it returns. Returning a fresh capsule each time would spawn
@@ -343,16 +460,29 @@ export default function (pi: ExtensionAPI) {
 				const previous = ctx?.lastComponent;
 				if (previous instanceof RunningCapsule) {
 					previous.update(makeLine, ctx);
+					previous.bgAnsi = bg;
 					return previous;
 				}
 
 				// HTML export passes a no-op invalidate; the result row stops the timer
 				// either way (see renderResult).
 				const row = new RunningCapsule(makeLine, () => ctx?.invalidate?.());
+				row.bgAnsi = bg;
 				if (ctx?.state) ctx.state.capsule = row;
 				return row;
 			},
 			renderResult(result: any, { expanded, isPartial }: any, theme: any, ctx: any) {
+				// Collapsed the result row draws nothing; building a Text (and scanning
+				// the whole output for a block that renders empty) costs on every
+				// redraw of every finished call.
+				if (!expanded) {
+					settleRunningRow(ctx?.state?.capsule, {
+						isError: ctx.isError,
+						expanded,
+						settled: !isPartial || ctx.isError,
+					});
+					return EMPTY;
+				}
 				const row = capsuleResultRow(
 					theme,
 					toolName,
@@ -362,6 +492,7 @@ export default function (pi: ExtensionAPI) {
 					isPartial ? "partial" : undefined,
 					ctx.isError,
 				);
+				if (row instanceof Capsule) row.bgAnsi = blockBg(theme, ctx);
 				// The call row owns the spinner; the result row ends it. HTML export
 				// always reports isPartial:false, so this also stops the export's timer
 				// — an unstopped one would spin forever with nothing left to render.
@@ -390,13 +521,14 @@ export function runningRow(
 	toolName: string,
 	command: string,
 	reason: string | undefined,
-	ctx?: { invalidate?: () => void; isError?: boolean },
+	ctx?: { invalidate?: () => void; isError?: boolean; durationMs?: number },
 ): Component {
-	if (ctx?.isError) return capsule(theme, COLLAPSED, toolName, command, reason, "error");
+	const meta = formatDuration(ctx?.durationMs);
+	if (ctx?.isError) return capsule(theme, COLLAPSED, toolName, command, reason, "error", meta);
 	const invalidate = ctx?.invalidate;
-	if (!invalidate) return capsule(theme, COLLAPSED, toolName, command, reason, "success");
+	if (!invalidate) return capsule(theme, COLLAPSED, toolName, command, reason, "success", meta);
 	return new RunningCapsule(
-		(frame, tone) => capsuleLine(theme, frame, toolName, command, reason, tone),
+		(frame, tone) => capsuleLine(theme, frame, toolName, command, reason, tone, meta),
 		invalidate,
 	);
 }
@@ -426,7 +558,7 @@ export function capsuleCallRow(
 	args: any,
 	result: any,
 	phase: "call" | "partial" | "done",
-	ctx?: { isError?: boolean; invalidate?: () => void },
+	ctx?: { isError?: boolean; invalidate?: () => void; durationMs?: number },
 ): Component {
 	const describe = detailsOf(toolName);
 	if (!describe) return new Text("", 0, 0);
@@ -435,7 +567,8 @@ export function capsuleCallRow(
 	if (phase === "call" || phase === "partial") {
 		return runningRow(theme, toolName, command, reason, ctx);
 	}
-	return capsule(theme, COLLAPSED, toolName, command, reason, ctx?.isError ? "error" : "success");
+	const tone: Tone = ctx?.isError ? "error" : "success";
+	return capsule(theme, COLLAPSED, toolName, command, reason, tone, formatDuration(ctx?.durationMs));
 }
 
 /**

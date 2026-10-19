@@ -36,7 +36,8 @@ function recordingTheme() {
 }
 
 /** Reject-character sprite so a colored run is visible in the plain string. */
-const SPINNER_FRAMES = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏".split("");
+// Mirrors the product's glyph set; see capsule-tools.ts for why braille is out.
+const SPINNER_FRAMES = "◐◓◑◒".split("");
 const ARROW = "▸";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -51,7 +52,7 @@ async function main() {
 		const first = capsule.render(40)[0]!;
 		check("first frame is the first spinner glyph", first.includes(SPINNER_FRAMES[0]!), first);
 
-		await sleep(400);
+		await sleep(200);
 		const later = capsule.render(40)[0]!;
 		check("frame advances over time", later !== first, `stuck on ${first}`);
 		check("spinner asked pi to redraw", redraws > 0, "no invalidate() calls");
@@ -336,7 +337,7 @@ async function main() {
 			exportCtx,
 		);
 		const frames: string[] = [callRow.render(60)[0]!];
-		await sleep(300);
+		await sleep(200);
 		frames.push(callRow.render(60)[0]!);
 		check(
 			"export call row stops once its result renders",
@@ -393,7 +394,7 @@ async function main() {
 
 		redraw();
 		try {
-			await sleep(500);
+			await sleep(200);
 		} finally {
 			(globalThis as any).setInterval = origSet;
 			(globalThis as any).clearInterval = origClear;
