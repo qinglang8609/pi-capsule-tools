@@ -41,6 +41,20 @@ node --experimental-strip-types check.ts   # 27 项：宽度/折行/缓存
 判据：`visibleWidth(line) <= width` 对 1/2/5/20/40/80/120/300 全部成立；
 折叠态恒为一行；换宽度后确实重画（缓存没串）。
 
+## 截断会打掉背景色
+`truncateToWidth` 在被截断时，会在省略号前插一个**完整 SGR 重置** `\x1b[0m`
+（见 pi-tui `utils.js` 的 `finalizeTruncatedResult`）。这个重置连父级 `Box` 给的背景一起清掉，
+于是 `…` 之后整段变成终端本色，绿底断成两截。
+
+修法：截断后把行背景重新贴回每个重置后面。
+
+```ts
+line.split("\x1b[0m").join(`\x1b[0m${theme.getBgAnsi("toolSuccessBg")}`);
+```
+
+只有命令长到要截断时才看得见，宽终端下完全正常——所以它很容易漏掉。
+
 ## 关联连接
 - [[pi-call-result-double-row]] — 展开态同样受宽度约束
+- [[pi-tool-renderer-animation]] — 每一帧转轮也受行宽约束，且同样要保住底色
 - [[fanchao]] — 本页沉淀者
