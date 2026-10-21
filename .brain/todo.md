@@ -1,11 +1,12 @@
 # 📋 Todo Board
 
 ## Todo
-- [ ] [进行中] release-1-2-0 [[fanchao]] — 提交 git、发新版本到 npm、本地重新装到新版本 (认领 2026-10-19 01a15376-01bc-71)
+- [ ] [进行中] git-commit [[fanchao]] — 提交当前改动到 git (认领 2026-10-21 01a15c2c-bdf2-72)
 
 ## Done
 
 ### 2026-10-19
+- [x] release-1-2-0 [[fanchao]] — 提交 git、发新版本到 npm、本地重新装到新版本 — 1.2.0 已发 npm；本地切回 npm 安装 1.2.0，settings 只留一条；git 三个提交未推送（代理全挂，GitHub 直连超时） 【落地】 (完成 2026-10-19 01a15376-01bc-71)
 - [x] review-capsule-tools [[fanchao]] — 对 pi-capsule-tools 做代码审查与效率优化：冗余代码、缓存、渲染开销、测试速度 — 展开态正文按宽度缓存换行、折叠态返回共享空组件、去掉重复的 describe 查找、动画测试等待 3.1s→2.1s 【落地】 (完成 2026-10-19 01a15376-01bc-71)
   - [x] 巳完：展开态正文按宽度缓存换行、折叠态结果行返回共享空组件、describe 查找去重、调短动画测试等待。未改：edit 的 +N -M 已验证直接用 pi 的 details.diff 计数正确（不是 diff 原文，无文件头行）。
 - [x] debug-click-no-response [[fanchao]] — fullscreen 模式下点工具块仍无反应：查鼠标追踪序列是否发出、事件是否送达 MouseRegion、是否有扩展拦截 — 点击已可用（tuiMode=fullscreen 生效）；顺带修掉展开后命令重复：结果行不再重画胶囊头 【落地】 (完成 2026-10-19 01a15376-01bc-71)
