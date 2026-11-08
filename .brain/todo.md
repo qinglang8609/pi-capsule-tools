@@ -5,6 +5,7 @@
 ## Done
 
 ### 2026-11-08
+- [x] release-1.3.0 [[fanchao]] — 发布 1.3.0：提交、npm version、publish、推 tag、切回 npm 装版 — 1.3.0 已上 registry（latest=1.3.0，modified 06:26）；main+tagn v1.3.0 已推；装版切回 npm 包，md5 e7dd4e15 与工作树一致，resolve 检查不 SKIP 【落地】 (完成 2026-11-08 01a1b9bb-59c3-70)
 - [x] mcp-error-no-compress [[fanchao]] — 查 MCP 工具报错时输出被压缩的来路，修成报错原文完整保留 — MCP 工具（mcp / mcp__*）也走胶囊：折叠行只留内层工具名（abs_task），报错时整行转红，正文 ctrl+o 看。自检 159 项全绿，resolve 检查确认胶囊渲染器在 pi 交互模式里压过适配器自带渲染。已把 pi 装机切到本地路径，等 /reload 看实际效果 【落地】 (完成 2026-11-08 01a1b9bb-59c3-70)
 - [x] auto-hide-thinking [[fanchao]] — capsule-tools 加载时若 settings 没设过 hideThinkingBlock 就写 true，新机器不用手动设 — 1.2.3 已发；两台机器都装 1.2.3，md5 一致。FNOS 渲染器链路验证 ctx_execute 走胶囊。用户需重启 pi 【落地】 (完成 2026-11-08 01a1b97a-ee58-77)
 - [x] release-patch [[fanchao]] — 提交剩余改动，npm version patch 发版，本地切回 npm 装版 — npm 有 1.2.1 和 1.2.2（同代码）；pi 装的是 1.2.2，md5 与工作树一致。staged publishing 和 pi 缓存旧包的坑已记进 publish 页 【落地】 (完成 2026-11-08 01a1b97a-ee58-77)
