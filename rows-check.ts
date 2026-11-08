@@ -12,7 +12,10 @@
 
 import { Capsule } from "./capsule-tools.ts";
 import { formatDuration, capsuleHead } from "./capsule-tools.ts";
+import { ensureHideThinkingBlock } from "./capsule-tools.ts";
 import { visibleWidth } from "@earendil-works/pi-tui";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 let failures = 0;
 function check(label: string, ok: boolean, detail = ""): void {
@@ -240,6 +243,21 @@ check(
 	check("body render is cached between identical widths", first[3] === second[3]);
 	const wider = c.render(100);
 	check("changing the width recomputes the body", wider !== first);
+}
+
+// think 折叠是用户设置，不跟包走：缺键才补 true，手动关掉的不覆盖。
+{
+	const dir = mkdtempSync(`${tmpdir()}/ct-think-`);
+	const p = `${dir}/settings.json`;
+	writeFileSync(p, JSON.stringify({ theme: "dark" }));
+	check("missing hideThinkingBlock gets written as true", ensureHideThinkingBlock(p));
+	check("written value is true", JSON.parse(readFileSync(p, "utf8")).hideThinkingBlock === true);
+	check("already set is left alone", !ensureHideThinkingBlock(p));
+	writeFileSync(p, JSON.stringify({ hideThinkingBlock: false }));
+	check("explicit false is not overwritten",
+		!ensureHideThinkingBlock(p) && JSON.parse(readFileSync(p, "utf8")).hideThinkingBlock === false);
+	writeFileSync(p, "not json");
+	check("bad json does not throw", !ensureHideThinkingBlock(p));
 }
 
 console.log(failures === 0 ? "\nall row checks passed" : `\n${failures} failed`);

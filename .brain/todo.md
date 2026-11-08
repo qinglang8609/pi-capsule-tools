@@ -1,11 +1,12 @@
 # 📋 Todo Board
 
 ## Todo
-- [ ] [进行中] release-patch [[fanchao]] — 提交剩余改动，npm version patch 发版，本地切回 npm 装版 (认领 2026-11-08 01a1b97a-ee58-77)
+- [ ] [进行中] auto-hide-thinking [[fanchao]] — capsule-tools 加载时若 settings 没设过 hideThinkingBlock 就写 true，新机器不用手动设 (认领 2026-11-08 01a1b97a-ee58-77)
 
 ## Done
 
 ### 2026-11-08
+- [x] release-patch [[fanchao]] — 提交剩余改动，npm version patch 发版，本地切回 npm 装版 — npm 有 1.2.1 和 1.2.2（同代码）；pi 装的是 1.2.2，md5 与工作树一致。staged publishing 和 pi 缓存旧包的坑已记进 publish 页 【落地】 (完成 2026-11-08 01a1b97a-ee58-77)
 - [x] dead-code-cleanup [[fanchao]] — capsuleResult 的 toolName 参数没用；capsuleCallRow/runningRow 只有测试用。确认后删/合 — 删掉 capsuleResult 没用的 toolName 参数；runningRow/capsuleCallRow 加注释说明是测试接缝（产品 renderCall 要复用 lastComponent，不走这两个）。自检全绿 【落地】 (完成 2026-11-08 01a1b97a-ee58-77)
 - [x] reuse-expanded-result-capsule [[fanchao]] — renderResult 展开时每次 new Capsule，detailBody 和换行缓存跨帧失效；量一下，然后像 call 行一样复用 lastComponent — 展开结果行按 content 数组复用 Capsule：2000 行 675µs→1.9µs，20000 行 6.9ms→17.8µs。内容/失败态变了才重建。自检全绿 【落地】 (完成 2026-11-08 01a1b97a-ee58-77)
 - [x] fix-edit-diff-rescan [[fanchao]] — edit 结束后每次重绘都 split 整个 diff 数行数；确认 renderResult 是否每次重绘都跑，然后修掉 — 折叠结果行早退不碰 describe；countDiffLines 不 split 且按 details WeakMap 缓存。250KB diff：折叠 0.1µs，展开重复渲染 2.9µs，旧 split 362µs 【落地】 (完成 2026-11-08 01a1b97a-ee58-77)

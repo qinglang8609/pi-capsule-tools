@@ -74,6 +74,9 @@ rm ~/.pi/agent/extensions/capsule-tools.ts
 - **内置工具**：bash、powershell、read、edit、write、grep、find、ls —— 胶囊渲染。**执行逻辑完全不碰**。
 - **context-mode**：`ctx_execute` —— 同样胶囊渲染（语言 + 代码首行，给了 `file` 就显路径）。其它 `ctx_*` / MCP 工具保持原样。
 - **其他工具**（MCP、其他扩展的工具）：**不动**，保留它们自己的渲染。
+- **think 折叠**：加载时如果用户 settings 里从没设过 `hideThinkingBlock`，补写成 `true`
+  （think 默认折成一行，点击或 `ctrl+t` 展开）。已经设过的不动——手动关掉的不会被强行打开。
+  写入对**下一次启动**生效；当前会话按 `ctrl+t` 立即折叠。
 
 ## 各工具显示什么
 

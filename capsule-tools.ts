@@ -14,6 +14,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Text, truncateToWidth, visibleWidth, type Component } from "@earendil-works/pi-tui";
 import { homedir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 const COLLAPSED = "▸";
 /** Shared blank row: a component that draws nothing and can never be mutated. */
@@ -466,7 +467,28 @@ function detailsOf(toolName: string): Describe | undefined {
 	}
 }
 
+/**
+ * think 折叠是 pi 的用户设置（`hideThinkingBlock`），不跟着包走。
+ * 新机器装上这个包，如果从没设过这个键，就补写成 true；
+ * 已经设过（包括手动关掉的 false）不动。
+ * 写入只对下一次启动生效——pi 启动时已经把设置读进内存了。
+ */
+export function ensureHideThinkingBlock(settingsPath: string): boolean {
+	try {
+		if (!existsSync(settingsPath)) return false;
+		const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
+		if (typeof settings !== "object" || settings === null) return false;
+		if (settings.hideThinkingBlock !== undefined) return false;
+		settings.hideThinkingBlock = true;
+		writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export default function (pi: ExtensionAPI) {
+	ensureHideThinkingBlock(`${homedir()}/.pi/agent/settings.json`);
 
 	// Pi wraps its own built-in renderers around the registered tool definition,
 	// so overriding `renderCall` through registerTool() loses for built-ins such
