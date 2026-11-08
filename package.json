@@ -1,6 +1,6 @@
 {
   "name": "pi-capsule-tools",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "type": "module",
   "description": "Render pi tool calls as one-line green capsules, expandable with ctrl+o",
   "license": "MIT",
