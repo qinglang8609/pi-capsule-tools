@@ -1,11 +1,12 @@
 # 📋 Todo Board
 
 ## Todo
-- [ ] [进行中] auto-hide-thinking [[fanchao]] — capsule-tools 加载时若 settings 没设过 hideThinkingBlock 就写 true，新机器不用手动设 (认领 2026-11-08 01a1b97a-ee58-77)
 
 ## Done
 
 ### 2026-11-08
+- [x] mcp-error-no-compress [[fanchao]] — 查 MCP 工具报错时输出被压缩的来路，修成报错原文完整保留 — MCP 工具（mcp / mcp__*）也走胶囊：折叠行只留内层工具名（abs_task），报错时整行转红，正文 ctrl+o 看。自检 159 项全绿，resolve 检查确认胶囊渲染器在 pi 交互模式里压过适配器自带渲染。已把 pi 装机切到本地路径，等 /reload 看实际效果 【落地】 (完成 2026-11-08 01a1b9bb-59c3-70)
+- [x] auto-hide-thinking [[fanchao]] — capsule-tools 加载时若 settings 没设过 hideThinkingBlock 就写 true，新机器不用手动设 — 1.2.3 已发；两台机器都装 1.2.3，md5 一致。FNOS 渲染器链路验证 ctx_execute 走胶囊。用户需重启 pi 【落地】 (完成 2026-11-08 01a1b97a-ee58-77)
 - [x] release-patch [[fanchao]] — 提交剩余改动，npm version patch 发版，本地切回 npm 装版 — npm 有 1.2.1 和 1.2.2（同代码）；pi 装的是 1.2.2，md5 与工作树一致。staged publishing 和 pi 缓存旧包的坑已记进 publish 页 【落地】 (完成 2026-11-08 01a1b97a-ee58-77)
 - [x] dead-code-cleanup [[fanchao]] — capsuleResult 的 toolName 参数没用；capsuleCallRow/runningRow 只有测试用。确认后删/合 — 删掉 capsuleResult 没用的 toolName 参数；runningRow/capsuleCallRow 加注释说明是测试接缝（产品 renderCall 要复用 lastComponent，不走这两个）。自检全绿 【落地】 (完成 2026-11-08 01a1b97a-ee58-77)
 - [x] reuse-expanded-result-capsule [[fanchao]] — renderResult 展开时每次 new Capsule，detailBody 和换行缓存跨帧失效；量一下，然后像 call 行一样复用 lastComponent — 展开结果行按 content 数组复用 Capsule：2000 行 675µs→1.9µs，20000 行 6.9ms→17.8µs。内容/失败态变了才重建。自检全绿 【落地】 (完成 2026-11-08 01a1b97a-ee58-77)
