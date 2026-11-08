@@ -140,6 +140,16 @@ r.extensions.find(e => e.path.includes("capsule-tools"))   // 必须存在
 此时 `npm view` 看到的是占位包 `0.0.0-stage`，**别慌**，正式发布后会被取代。
 若重发报 `409 Cannot publish over previously staged version`，换版本号绕：`npm version patch && npm publish`。
 
+**2026-11-08 发 1.2.1/1.2.2 又踩一遍，另加两条**：
+
+1. `npm publish` 打印 `+ pi-capsule-tools@1.2.1` **不代表真的上了 registry**。
+   `curl registry.npmjs.org/pi-capsule-tools` 看 `versions` 和 `time.modified` 才算数。
+   第一发卡 staged，几分钟后再发 409，换 1.2.2 绕过去；两个版本内容一致。
+2. `pi install npm:pi-capsule-tools` 可能装到**旧内容的缓存包**（package.json 还是 1.2.0，
+   md5 是旧源码），即使 registry 上 latest 已经是新版本。修法：
+   `pi remove` 后 `npm cache clean --force`，再 `pi install npm:pi-capsule-tools@<明确版本>`，
+   装完 **md5 对一下工作树**。别只看 `pi list` 有这一条。
+
 ## 关联连接
 - [[pi-tool-renderer-override]] — 发布前先保证渲染器真的接管了
 - [[installed-pi-package-check]] — 发布后的装版体检与 node 24 调试限制
