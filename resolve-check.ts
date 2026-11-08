@@ -56,16 +56,15 @@ const base = () => ({ renderCall: () => "BUILTIN", renderResult: () => "BUILTIN"
 const resolve = (i: number, name: string) =>
 	i < resolvers.length ? resolvers[i](name, () => resolve(i + 1, name)) : base();
 
-for (const name of ["bash", "powershell", "read", "edit", "write", "grep", "find", "ls", "ctx_execute"]) {
+for (const name of ["bash", "powershell", "read", "edit", "write", "grep", "find", "ls", "ctx_execute", "mcp", "mcp__abs"]) {
 	const renderers = resolve(0, name) as any;
 	check(`${name}: capsule renderer wins`, typeof renderers?.renderCall === "function");
 	check(`${name}: renderShell is default so pi paints the background`,
 		(renderers?.renderShell ?? "default") === "default");
 }
 
-// An unknown tool must fall through untouched, so MCP and other extension
-// tools keep their own rendering.
-const unknown = resolve(0, "mcp") as any;
+// 其他扩展的工具仍然原样穿透（MCP 不在其列，MCP 也折胶囊）。
+const unknown = resolve(0, "some_other_ext_tool") as any;
 check("unknown tool falls through to base", unknown?.renderCall?.() === "BUILTIN");
 
 console.log(failures === 0 ? "\nall resolve checks passed" : `\n${failures} failed`);

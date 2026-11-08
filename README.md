@@ -72,8 +72,9 @@ rm ~/.pi/agent/extensions/capsule-tools.ts
 ## 覆盖范围
 
 - **内置工具**：bash、powershell、read、edit、write、grep、find、ls —— 胶囊渲染。**执行逻辑完全不碰**。
-- **context-mode**：`ctx_execute` —— 同样胶囊渲染（语言 + 代码首行，给了 `file` 就显路径）。其它 `ctx_*` / MCP 工具保持原样。
-- **其他工具**（MCP、其他扩展的工具）：**不动**，保留它们自己的渲染。
+- **context-mode**：`ctx_execute` —— 同样胶囊渲染（语言 + 代码首行，给了 `file` 就显路径）。其它 `ctx_*` 工具保持原样。
+- **MCP**：`mcp`（网关）和 `mcp__<server>`（命名空间/直连工具）—— 胶囊渲染，折叠行只放内层工具名（`abs_task`），报错时整行转红。pi-mcp-adapter 自己那套渲染会把调用参数和结果原文铺开，**报错时尤其长**，所以这里接管了它。展开时 `命令` 段给内层参数（一行 JSON）。
+- **其他工具**（其他扩展的工具）：**不动**，保留它们自己的渲染。
 - **think 折叠**：加载时如果用户 settings 里从没设过 `hideThinkingBlock`，补写成 `true`
   （think 默认折成一行，点击或 `ctrl+t` 展开）。已经设过的不动——手动关掉的不会被强行打开。
   写入对**下一次启动**生效；当前会话按 `ctrl+t` 立即折叠。
@@ -91,6 +92,8 @@ rm ~/.pi/agent/extensions/capsule-tools.ts
 | `find` | 模式 / 路径 | — |
 | `ls` | 路径 | — |
 | `ctx_execute` | 语言 + 代码首行；给了 `file` 就显路径 | — |
+| `mcp` | 内层工具名，其次网关动作（`status` / `install`…） | `failed` |
+| `mcp__<server>` | 内层工具名（`abs_task`） | `failed` |
 
 运行中会显示 `running…` / `reading…` 之类的状态尾；结束后状态尾让位给右对齐的耗时
 （`12ms` / `1.2s` / `1m05s`，取自 pi 渲染上下文的 `durationMs`）。终端太窄放不下耗时就直接不画，

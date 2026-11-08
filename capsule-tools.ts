@@ -352,12 +352,20 @@ function capsuleResult(
  *
  * Tools missing from this map fall through to the next resolver.
  */
+type DescribeResult = {
+	/** 折叠行上的那一段（也是 `命令` 段的默认内容）。 */
+	command: string;
+	reason?: string;
+	/** 展开时 `命令` 段改用这一段——折叠行只留短标签，正文仍然完整。 */
+	body?: string;
+};
+
 type Describe = (
 	args: any,
 	result: any,
 	phase: "call" | "partial" | "done",
 	ctx?: { isError?: boolean },
-) => { command: string; reason?: string };
+) => DescribeResult;
 
 /**
  * Count changed lines from a unified diff (`+`/`-` prefixes).
@@ -394,6 +402,58 @@ function countDiffLines(result: any): { added: number; removed: number } | undef
 
 function firstLineOf(text: unknown, max = 120): string {
 	return firstLine(String(text ?? "..."), max);
+}
+
+/**
+ * pi-mcp-adapter 的工具名：`mcp` 是网关，`mcp__<server>[__<tool>]` 是命名空间/直连工具。
+ *
+ * 它自己的渲染会把调用参数和结果原文铺开——报错时特别长，一屏就这么被占掉；
+ * 这里让它们也走胶囊：折叠行只留一个词（内层工具名），报错时整行转红，
+ * 正文改用 ctrl+o 看。
+ */
+export function isMcpTool(toolName: string): boolean {
+	return toolName === "mcp" || toolName.startsWith("mcp__");
+}
+
+/**
+ * 折叠行上那一个词，按序取：直连工具名（`mcp__abs__abs_task` → `abs_task`）、
+ * 内层工具名（`mcp__abs` 配合 `{tool:"abs_task"}`）、网关动作（`status`）。
+ * 工具名里自带的 `__` 会被截断——只是折叠行上的简称，全名仍在工具标签里。
+ */
+function mcpCommand(toolName: string, args: any): string {
+	const direct = toolName.split("__")[2];
+	if (direct) return firstLine(direct, 60);
+	for (const key of ["tool", "action", "cancelTask", "describe", "search", "connect", "server"]) {
+		const value = args?.[key];
+		if (typeof value === "string" && value.trim()) return firstLine(value, 60);
+	}
+	return "...";
+}
+
+/** 展开时的 `命令` 段：参数比工具名有用，压成一行 JSON。 */
+function mcpBody(toolName: string, args: any): string | undefined {
+	// 网关/命名空间代理把内层参数放在 `args` 里；直连工具的 args 就是参数本身。
+	const inner = toolName.split("__")[2] ? args : args?.args;
+	if (!inner || typeof inner !== "object") return undefined;
+	try {
+		const json = JSON.stringify(inner);
+		return json && json !== "{}" ? firstLine(json, 1000) : undefined;
+	} catch {
+		return undefined; // 循环引用等：宁可不给正文，也不能让整行渲染炸掉
+	}
+}
+
+function mcpDescribe(
+	toolName: string,
+	args: any,
+	phase: "call" | "partial" | "done",
+	ctx?: { isError?: boolean },
+): DescribeResult {
+	return {
+		command: mcpCommand(toolName, args),
+		body: mcpBody(toolName, args),
+		reason: phase === "partial" ? "calling…" : ctx?.isError ? "failed" : undefined,
+	};
 }
 
 function detailsOf(toolName: string): Describe | undefined {
@@ -463,7 +523,8 @@ function detailsOf(toolName: string): Describe | undefined {
 				};
 			};
 		default:
-			return undefined;
+			// MCP 工具也折成胶囊；其他扩展的工具仍然保持它们自己的渲染。
+			return isMcpTool(toolName) ? (args, _result, phase, ctx) => mcpDescribe(toolName, args, phase, ctx) : undefined;
 	}
 }
 
@@ -668,17 +729,19 @@ export function capsuleResultRow(
 	const describe = detailsOf(toolName);
 	if (!describe) return new Text("", 0, 0);
 	const phase = partialPhase ?? "done";
-	const { command, reason } = describe(args, result, phase, { isError });
+	const { command, reason, body } = describe(args, result, phase, { isError });
+	// 折叠行（command）要短，展开的 `命令` 段要全：MCP 的内层参数就是这样进来的。
+	const bodyText = body ?? command;
 	const doneReason = phase === "done" ? reason : undefined;
 	const partialReason = phase === "partial" ? reason : undefined;
 	const content = Array.isArray(result?.content) ? result.content : undefined;
-	const tag = `${toolName}|${content?.length ?? -1}|${command}|${doneReason ?? partialReason ?? ""}`;
+	const tag = `${toolName}|${content?.length ?? -1}|${bodyText}|${doneReason ?? partialReason ?? ""}`;
 	if (content) {
 		const hit = expandedResultRows.get(content);
 		if (hit && hit.tag === tag) return hit.row;
-		const row = capsuleResult(theme, command, result, expanded, doneReason, partialReason);
+		const row = capsuleResult(theme, bodyText, result, expanded, doneReason, partialReason);
 		expandedResultRows.set(content, { tag, row });
 		return row;
 	}
-	return capsuleResult(theme, command, result, expanded, doneReason, partialReason);
+	return capsuleResult(theme, bodyText, result, expanded, doneReason, partialReason);
 }

@@ -147,6 +147,58 @@ check("path tools are distinguishable", new Set(heads).size === 3, `got ${JSON.s
 	check("ctx_execute expanded shows the result", expanded.includes("结果") && expanded.includes("3"), expanded);
 }
 {
+	// MCP 工具（pi-mcp-adapter）：`mcp__<server>` / `mcp` 也要折成胶囊。
+	// 之前它们走适配器自己的渲染，参数和报错原文整段铺开，报错时一屏就没了。
+	const mcpArgs = { tool: "abs_task", args: { action: "start", cwd: "/tmp", id: "probe" } };
+	const mcpError = {
+		content: [{ type: "text", text: "Error: ✗ 任务必须有描述\n  用法: abs todo start <id> --note \"…\"" }],
+	};
+
+	const mcpCall = capsuleCallRow(theme, "mcp__abs", mcpArgs, mcpError, "done", { isError: true });
+	const mcpCallRows = mcpCall.render(80);
+	const mcpLine = mcpCallRows[0] ?? "";
+	check("mcp call folds to one row", mcpCallRows.length === 1, JSON.stringify(mcpCallRows));
+	check("mcp call shows the inner tool name", mcpLine.includes("abs_task"), mcpLine);
+	check("mcp call does not dump the arguments", !mcpLine.includes("cwd"), mcpLine);
+	check("failed mcp call says failed", mcpLine.includes("failed"), mcpLine);
+
+	// 报错要真的走红色那条路：胶囊用 `error` 主题色画箭头和工具名。
+	const tones: string[] = [];
+	capsuleCallRow({ fg: (t: string, s: string) => (tones.push(t), s), bold: (s: string) => s },
+		"mcp__abs", mcpArgs, mcpError, "done", { isError: true }).render(80);
+	check("failed mcp call uses the error tone", tones.includes("error"), tones.join(","));
+	const okTones: string[] = [];
+	capsuleCallRow({ fg: (t: string, s: string) => (okTones.push(t), s), bold: (s: string) => s },
+		"mcp__abs", mcpArgs, {}, "done", {}).render(80);
+	check("successful mcp call stays on the success tone",
+		okTones.includes("success") && !okTones.includes("error"), okTones.join(","));
+
+	const mcpCollapsed = capsuleResultRow(theme, "mcp__abs", mcpArgs, mcpError, false, undefined, true)
+		.render(80).join("");
+	check("mcp error body stays folded", mcpCollapsed.trim() === "", JSON.stringify(mcpCollapsed));
+
+	const mcpExpanded = capsuleResultRow(theme, "mcp__abs", mcpArgs, mcpError, true, undefined, true)
+		.render(80).join("\n");
+	check("expanded mcp body shows the inner arguments",
+		mcpExpanded.includes("命令") && mcpExpanded.includes('"cwd":"/tmp"'), mcpExpanded);
+	check("expanded mcp body keeps the error text",
+		mcpExpanded.includes("结果") && mcpExpanded.includes("任务必须有描述") && mcpExpanded.includes("failed"),
+		mcpExpanded);
+
+	// 网关形式（`mcp` + action）和直连形式（`mcp__<server>__<tool>`）也要折起来。
+	const gateway = capsuleCallRow(theme, "mcp", { action: "status" }, {}, "call").render(80)[0] ?? "";
+	check("mcp gateway call gets a capsule", gateway.includes("mcp") && gateway.includes("status"), gateway);
+	const directArgs = { query: "hi" };
+	const direct = capsuleCallRow(theme, "mcp__abs__abs_task", directArgs, {}, "call").render(80)[0] ?? "";
+	check("direct mcp tool shows its own name as the word",
+		direct.includes("abs_task") && !direct.includes('"query"'), direct);
+	const directExpanded = capsuleResultRow(theme, "mcp__abs__abs_task", directArgs,
+		{ content: [{ type: "text", text: "ok" }] }, true).render(80).join("\n");
+	check("direct mcp tool shows its own arguments when expanded",
+		directExpanded.includes('"query":"hi"'), directExpanded);
+}
+
+{
 	// edit 的大 diff：计数要对；折叠不该去碰 diff；重复渲染走 details 缓存。
 	const lines: string[] = [];
 	for (let i = 0; i < 8000; i++) lines.push("+ added line " + i);

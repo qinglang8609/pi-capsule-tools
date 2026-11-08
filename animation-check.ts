@@ -310,6 +310,41 @@ async function main() {
 		check("failed result leaves the command green", !red.includes("exit 1"), JSON.stringify(red));
 	}
 
+	// --- MCP 调用走同一套回调：折叠一行、报错转红 ----------------------------
+	// pi-mcp-adapter 自己那套渲染会把调用参数和整段报错原文铺开，所以 MCP 也接管了。
+	// 这里跑真实 resolver 的 renderCall/renderResult，确认两边接得上。
+	{
+		const pi = { registerToolRenderer: (fn: any) => { (pi as any).resolver = fn; } };
+		(await import("./capsule-tools.ts")).default(pi as any);
+		const renderers = (pi as any).resolver("mcp__abs", () => undefined);
+		const theme = recordingTheme();
+		const args = { tool: "abs_task", args: { action: "start", id: "probe" } };
+		const failure = { content: [{ type: "text", text: "Error: ✗ 任务必须有描述" }], isError: true };
+
+		const state: any = {};
+		const callRow: any = renderers.renderCall(args, theme, { args, state, invalidate: () => {}, isError: false });
+		const running = callRow.render(80);
+		check("mcp resolver call row is one line", running.length === 1, JSON.stringify(running));
+		check("mcp resolver call row shows the inner tool name", running[0].includes("abs_task"), running[0]);
+		check("mcp resolver call row hides the arguments", !running[0].includes("probe"), running[0]);
+
+		theme.seen.length = 0;
+		const resultRow = renderers.renderResult(failure, { expanded: false, isPartial: false }, theme, {
+			args, state, lastComponent: undefined, invalidate: () => {}, isError: true,
+		});
+		check("collapsed mcp error result draws no second row", resultRow.render(80).join("").trim() === "");
+		const red = theme.seen.filter((s) => s.token === "error").map((s) => s.text);
+		check("failed mcp call paints the arrow red", red.includes(ARROW), JSON.stringify(theme.seen));
+		check("failed mcp call paints the tool name red", red.includes("mcp__abs"), JSON.stringify(theme.seen));
+		check("failed mcp call leaves the word green", !red.includes("abs_task"), JSON.stringify(red));
+
+		const expanded = renderers.renderResult(failure, { expanded: true, isPartial: false }, theme, {
+			args, state, lastComponent: undefined, invalidate: () => {}, isError: true,
+		}).render(80).join("\n");
+		check("expanded mcp error keeps the text",
+			expanded.includes("任务必须有描述") && expanded.includes("结果") && expanded.includes("failed"), expanded);
+	}
+
 	// --- HTML export leaves no timer running --------------------------------
 	// Export passes a real but no-op `invalidate` and always isPartial:false.
 	// The call row animates, then the result renders and must stop it — a timer
