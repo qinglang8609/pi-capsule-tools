@@ -1,6 +1,7 @@
 # 📋 Todo Board
 
 ## Todo
+- [ ] [进行中] release-patch [[fanchao]] — 提交剩余改动，npm version patch 发版，本地切回 npm 装版 (认领 2026-11-08 01a1b97a-ee58-77)
 
 ## Done
 
