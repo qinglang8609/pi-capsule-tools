@@ -34,9 +34,18 @@ export function shortenPath(path: string): string {
 	return path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
 }
 
-/** First line only — the capsule must never wrap. */
+/**
+ * First line only — the capsule must never wrap.
+ *
+ * 只看前 max+1 个字符：ctx_execute 的 code 可能上 MB，`split("\n")` 会把整段
+ * 切成几十万个元素的临时数组，而转轮每 90ms 重跑一次 describe。首行超过
+ * max 本来就要截断，后面的内容对胶囊没有用。
+ */
 function firstLine(text: string, max = 120): string {
-	const line = String(text).split("\n")[0] ?? "";
+	const raw = String(text ?? "...");
+	const head = raw.slice(0, max + 1);
+	const nl = head.indexOf("\n");
+	const line = nl === -1 ? head : head.slice(0, nl);
 	return line.length > max ? `${line.slice(0, max - 1)}…` : line;
 }
 
@@ -316,7 +325,6 @@ export class RunningCapsule extends Capsule {
  */
 function capsuleResult(
 	theme: any,
-	toolName: string,
 	command: string,
 	result: any,
 	expanded: boolean,
@@ -350,16 +358,37 @@ type Describe = (
 	ctx?: { isError?: boolean },
 ) => { command: string; reason?: string };
 
-/** Count changed lines from a unified diff (`+`/`-` prefixes). */
-function countDiffLines(diff: unknown): { added: number; removed: number } | undefined {
+/**
+ * Count changed lines from a unified diff (`+`/`-` prefixes).
+ *
+ * pi 每次重绘都会重跑 `renderResult`，同一个 `details` 会被数很多遍。
+ * 不 `split`（那是 O(diff) 还要分配一整组行数组），按行首字符扫；
+ * 再按 `details` 对象缓存——pi 每帧都 new 一层 `{ content, details }` 包装，
+ * 但 `details` 本身是同一个引用。
+ */
+const diffCounts = new WeakMap<object, { added: number; removed: number }>();
+
+function countDiffLines(result: any): { added: number; removed: number } | undefined {
+	const details = result?.details;
+	const diff = details?.diff;
 	if (typeof diff !== "string" || diff.length === 0) return undefined;
+	const cached = diffCounts.get(details);
+	if (cached) return cached;
 	let added = 0;
 	let removed = 0;
-	for (const line of diff.split("\n")) {
-		if (line.startsWith("+")) added++;
-		else if (line.startsWith("-")) removed++;
+	let i = 0;
+	const n = diff.length;
+	while (i < n) {
+		const ch = diff.charCodeAt(i);
+		if (ch === 43) added++; // "+"
+		else if (ch === 45) removed++; // "-"
+		const nl = diff.indexOf("\n", i);
+		if (nl === -1) break;
+		i = nl + 1;
 	}
-	return { added, removed };
+	const counts = { added, removed };
+	diffCounts.set(details, counts);
+	return counts;
 }
 
 function firstLineOf(text: unknown, max = 120): string {
@@ -395,7 +424,7 @@ function detailsOf(toolName: string): Describe | undefined {
 				const command = shortenPath(args?.path ?? "...");
 				if (phase === "partial") return { command, reason: "editing…" };
 				// details carries `diff`/`patch`/`firstChangedLine` — no added/removed counts.
-				const counts = countDiffLines(result?.details?.diff);
+				const counts = countDiffLines(result);
 				return {
 					command,
 					reason: counts ? `+${counts.added} -${counts.removed}` : undefined,
@@ -421,6 +450,17 @@ function detailsOf(toolName: string): Describe | undefined {
 				command: shortenPath(args?.path ?? "."),
 				reason: phase === "partial" ? "listing…" : undefined,
 			});
+		// context-mode 的执行工具。code 可能是一大段脚本，只取首行；
+		// 给了 file 时路径比代码更能认出这一次调用。
+		case "ctx_execute":
+			return (args, _result, phase) => {
+				const lang = typeof args?.language === "string" && args.language.trim() ? args.language.trim() : "...";
+				const target = args?.file ? shortenPath(String(args.file)) : firstLineOf(args?.code);
+				return {
+					command: `${lang} ${target}`,
+					reason: phase === "partial" ? "running…" : undefined,
+				};
+			};
 		default:
 			return undefined;
 	}
@@ -481,6 +521,10 @@ export default function (pi: ExtensionAPI) {
 						expanded,
 						settled: !isPartial || ctx.isError,
 					});
+					// 折叠后展开缓存不再有人用：删掉，别让大输出的 body 副本一直挂在
+					// WeakMap 里。下次展开重建（换行反正要按当时的宽度算）。
+					const content = Array.isArray(result?.content) ? result.content : undefined;
+					if (content) expandedResultRows.delete(content);
 					return EMPTY;
 				}
 				const row = capsuleResultRow(
@@ -512,6 +556,9 @@ export default function (pi: ExtensionAPI) {
 
 /**
  * The animated `⠋ tool command` line for a call that is still running.
+ *
+ * 产品路径不走这里：`renderCall` 要复用 `lastComponent`，自己拼 `RunningCapsule`。
+ * 这两个导出是测试接缝，让 rows/animation 检查能不架 pi 就能打到同一套行构造。
  *
  * `invalidate` comes from the render context (pi's per-row redraw hook). It is
  * optional so the exported row builders stay callable from tests.
@@ -575,6 +622,15 @@ export function capsuleCallRow(
  * The result row. Empty while collapsed — the call row already drew the
  * capsule, and drawing it again doubled every tool call on screen.
  */
+/**
+ * 展开结果行的复用：pi 每帧重跑 `renderResult`，`detailBody`（拼接 + 缩进整段输出）
+ * 加上按宽换行，2000 行实测 675µs/帧；复用同一个 `Capsule` 后命中 `cachedBody`，0.5µs。
+ *
+ * 键是 `result.content` 数组——pi 每帧都 new 一层 `{ content, details }` 包装，
+ * 但 `content` 是同一个引用。流式时长度变、tag 变，自然重建。
+ */
+const expandedResultRows = new WeakMap<object, { tag: string; row: Component }>();
+
 export function capsuleResultRow(
 	theme: any,
 	toolName: string,
@@ -584,17 +640,23 @@ export function capsuleResultRow(
 	partialPhase?: "partial",
 	isError?: boolean,
 ): Component {
+	// 折叠时结果行本来就是空的，describe（edit 要数 diff、bash 要取命令首行）
+	// 每帧白算一遍。早退，别碰 result。
+	if (!expanded) return new Text("", 0, 0);
 	const describe = detailsOf(toolName);
 	if (!describe) return new Text("", 0, 0);
 	const phase = partialPhase ?? "done";
 	const { command, reason } = describe(args, result, phase, { isError });
-	return capsuleResult(
-		theme,
-		toolName,
-		command,
-		result,
-		expanded,
-		phase === "done" ? reason : undefined,
-		phase === "partial" ? reason : undefined,
-	);
+	const doneReason = phase === "done" ? reason : undefined;
+	const partialReason = phase === "partial" ? reason : undefined;
+	const content = Array.isArray(result?.content) ? result.content : undefined;
+	const tag = `${toolName}|${content?.length ?? -1}|${command}|${doneReason ?? partialReason ?? ""}`;
+	if (content) {
+		const hit = expandedResultRows.get(content);
+		if (hit && hit.tag === tag) return hit.row;
+		const row = capsuleResult(theme, command, result, expanded, doneReason, partialReason);
+		expandedResultRows.set(content, { tag, row });
+		return row;
+	}
+	return capsuleResult(theme, command, result, expanded, doneReason, partialReason);
 }

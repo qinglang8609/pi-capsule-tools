@@ -110,6 +110,70 @@ for (const [i, name] of ["read", "write", "ls"].entries()) {
 }
 check("path tools are distinguishable", new Set(heads).size === 3, `got ${JSON.stringify(heads)}`);
 
+// context-mode 的 ctx_execute 也要进胶囊：语言 + 代码首行（或 file 路径）。
+{
+	const row = capsuleCallRow(theme, "ctx_execute", { language: "shell", code: "git log --oneline -5" }, {}, "call")
+		.render(80)[0] ?? "";
+	check("ctx_execute gets a capsule", row.includes("ctx_execute"), JSON.stringify(row));
+	check("ctx_execute shows language and first line of code", row.includes("shell") && row.includes("git log"), row);
+}
+{
+	const row = capsuleCallRow(theme, "ctx_execute", { language: "python", code: "print('hi')\nprint('more')", file: "/tmp/big.csv" }, {}, "call")
+		.render(80)[0] ?? "";
+	check("ctx_execute with file prefers the path", row.includes("python") && row.includes("big.csv"), row);
+	check("ctx_execute with file does not show the code", !row.includes("print"), row);
+}
+{
+	// 大 code 不能把渲染拖垮：split 整段会每帧切一遍上 MB 的字符串。
+	const huge = "first-line\n" + "x".repeat(1_000_000);
+	const row = capsuleCallRow(theme, "ctx_execute", { language: "shell", code: huge }, {}, "call")
+		.render(80)[0] ?? "";
+	check("huge multiline code shows only the first line", row.includes("first-line") && !row.includes("xxxx"), row);
+	const oneline = capsuleCallRow(theme, "ctx_execute", { language: "shell", code: "y".repeat(1_000_000) }, {}, "call")
+		.render(80)[0] ?? "";
+	check("huge single-line code still truncates", oneline.includes("ctx_execute"), oneline);
+}
+{
+	const expanded = capsuleResultRow(
+		theme,
+		"ctx_execute",
+		{ language: "shell", code: "seq 1 3" },
+		{ content: [{ type: "text", text: "1\n2\n3" }] },
+		true,
+	).render(80).join("\n");
+	check("ctx_execute expanded shows the result", expanded.includes("结果") && expanded.includes("3"), expanded);
+}
+{
+	// edit 的大 diff：计数要对；折叠不该去碰 diff；重复渲染走 details 缓存。
+	const lines: string[] = [];
+	for (let i = 0; i < 8000; i++) lines.push("+ added line " + i);
+	for (let i = 0; i < 12; i++) lines.push("- removed line " + i);
+	lines.push(" context line");
+	const bigDiff = lines.join("\n");
+	const result = { content: [{ type: "text", text: "ok" }], details: { diff: bigDiff } };
+	const expanded = capsuleResultRow(theme, "edit", { path: "/tmp/x.ts" }, result, true)
+		.render(80).join("\n");
+	check("large edit diff counts +8000 -12", expanded.includes("+8000 -12"), expanded.slice(0, 400));
+	const collapsed = capsuleResultRow(theme, "edit", { path: "/tmp/x.ts" }, result, false)
+		.render(80).join("");
+	check("collapsed edit still empty with big diff", collapsed.trim() === "", JSON.stringify(collapsed));
+}
+
+// 展开结果行必须复用：pi 每帧重跑 renderResult，new Capsule 会把换行缓存冲掉
+// （2000 行实测 675µs/帧，复用后 0.5µs）。
+{
+	const result = { content: [{ type: "text", text: "out\nout2" }] };
+	const a = capsuleResultRow(theme, "bash", args, result, true);
+	const b = capsuleResultRow(theme, "bash", args, result, true);
+	check("expanded result reuses the same Capsule", a === b, "two calls returned different components");
+	const changed = { content: [{ type: "text", text: "out\nout2" }, { type: "text", text: "more" }] };
+	const c = capsuleResultRow(theme, "bash", args, changed, true);
+	check("expanded result rebuilds when content changes", a !== c);
+	const failedResult = { content: [{ type: "text", text: "boom" }] };
+	const d = capsuleResultRow(theme, "bash", args, failedResult, true, undefined, true);
+	check("expanded result rebuilds on failure", a !== d);
+}
+
 // The expanded body must be two labelled layers: the command that ran, then the
 // result. Without them a long command stays truncated in the head forever.
 const layered = capsuleResultRow(theme, "bash", args, result, true).render(80).join("\n");

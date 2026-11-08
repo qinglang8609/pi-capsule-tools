@@ -72,6 +72,7 @@ rm ~/.pi/agent/extensions/capsule-tools.ts
 ## 覆盖范围
 
 - **内置工具**：bash、powershell、read、edit、write、grep、find、ls —— 胶囊渲染。**执行逻辑完全不碰**。
+- **context-mode**：`ctx_execute` —— 同样胶囊渲染（语言 + 代码首行，给了 `file` 就显路径）。其它 `ctx_*` / MCP 工具保持原样。
 - **其他工具**（MCP、其他扩展的工具）：**不动**，保留它们自己的渲染。
 
 ## 各工具显示什么
@@ -86,6 +87,7 @@ rm ~/.pi/agent/extensions/capsule-tools.ts
 | `grep` | 搜索模式 | — |
 | `find` | 模式 / 路径 | — |
 | `ls` | 路径 | — |
+| `ctx_execute` | 语言 + 代码首行；给了 `file` 就显路径 | — |
 
 运行中会显示 `running…` / `reading…` 之类的状态尾；结束后状态尾让位给右对齐的耗时
 （`12ms` / `1.2s` / `1m05s`，取自 pi 渲染上下文的 `durationMs`）。终端太窄放不下耗时就直接不画，
