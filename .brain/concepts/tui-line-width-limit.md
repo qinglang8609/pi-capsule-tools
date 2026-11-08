@@ -2,7 +2,7 @@
 tags: [concept]
 id: tui-line-width-limit
 author: fanchao
-updated: 2026-10-09
+updated: 2026-11-08
 status: active
 ---
 
@@ -54,7 +54,19 @@ line.split("\x1b[0m").join(`\x1b[0m${theme.getBgAnsi("toolSuccessBg")}`);
 
 只有命令长到要截断时才看得见，宽终端下完全正常——所以它很容易漏掉。
 
+## 崩溃日志取证：逐行看 `w=`，别按 cwd 猜
+
+`pi-tui-crash.log` 每行带渲染宽度。2026-10-14 体检时，越宽的那行是 abs 的 todo 状态栏
+（`📋 todo (1) — fanchao`，36 列 > 35 列终端），不是 capsule-tools（它的行全是 w=35）。
+按崩溃发生的项目目录猜凶手，就会冤枉好人。
+
+取证办法：**逐行看 `w=` 值**，谁超过终端宽度谁就是嫌疑，再看那一行内容是谁画的。
+细节见 [[installed-pi-package-check]]。
+
 ## 关联连接
 - [[pi-call-result-double-row]] — 展开态同样受宽度约束
 - [[pi-tool-renderer-animation]] — 每一帧转轮也受行宽约束，且同样要保住底色
+- [[tui-spinner-glyph-compat]] — 回退字体把转轮字符挤宽，撞的是同一类宽度问题
+- [[installed-pi-package-check]] — 崩溃日志 `w=` 取证的具体做法
+- [[capsule-hot-path-perf]] — 截断/换行别每帧重算大入参
 - [[fanchao]] — 本页沉淀者

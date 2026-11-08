@@ -91,6 +91,9 @@ settleRunningRow(ctx?.state?.capsule, {...});     // renderResult 里停
 ## 第四个坑：停表后别把转轮冻在半路
 `stop()` 里保留当前帧的 `⠹` 看着像「还在想」，要把箭头 `▸` 换回来，失败则红色箭头。
 
+另外，盲文点阵字符本身在 Herdr 等终端会掉进回退字体、宽度超一格、整行抖动，
+后来换成了 `◐◓◑◒`。见 [[tui-spinner-glyph-compat]]。
+
 ## 怎么验证（普通单测拦不住）
 除了下面这些，还有一条**最隐蔽的测试教训**：
 
@@ -133,4 +136,6 @@ function redraw() {
 - [[publish-pi-package-to-npm]] — 安装方式的权威依据（pi install，别 cp）
 - [[test-handmade-data-hides-key-mismatch]] — 「拿真实调用路径跑」这条教训的源头
 - [[tui-line-width-limit]] — 每一帧转轮也受行宽约束
+- [[tui-spinner-glyph-compat]] — 转轮字形在部分终端的字体兼容与卡顿排查
+- [[capsule-hot-path-perf]] — 转轮每帧重跑 renderCall，别在里面 split 大入参
 - [[fanchao]] — 本页沉淀者

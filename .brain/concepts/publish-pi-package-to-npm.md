@@ -126,6 +126,7 @@ pi list                 # 确认装上了
 ```
 
 **发布后必做**：确认扩展真的被加载（不能只看 `pi install` 成功）。
+装版与源码是否一致、node 24 怎么调试装版，见 [[installed-pi-package-check]]。
 
 ```ts
 const r = loader.getExtensions();
@@ -141,6 +142,7 @@ r.extensions.find(e => e.path.includes("capsule-tools"))   // 必须存在
 
 ## 关联连接
 - [[pi-tool-renderer-override]] — 发布前先保证渲染器真的接管了
+- [[installed-pi-package-check]] — 发布后的装版体检与 node 24 调试限制
 - [[git-proxy-troubleshooting]] — 推代码卡在代理时按那页的顺序查
 - [[test-handmade-data-hides-key-mismatch]] — 发布前的门禁测试别用手造数据
 - [[fanchao]] — 本页沉淀者

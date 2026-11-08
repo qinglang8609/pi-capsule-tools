@@ -12,14 +12,15 @@
 - [[test-handmade-data-hides-key-mismatch]] — 手造测试数据会让实现与测试一起猜错键名
 - [[publish-pi-package-to-npm]] — 把 pi 扩展发成标准 npm 包
 - [[git-proxy-troubleshooting]] — git push 走代理失败的三种情形与排查顺序
+- [[installed-pi-package-check]] — 已装 pi 扩展的体检方法与 node 24 调试限制
+- [[tui-spinner-glyph-compat]] — fullscreen 卡顿先压测组件，再查动画字符字体
+- [[capsule-hot-path-perf]] — 胶囊热路径：别每帧 split 大入参、折叠早退、展开 Capsule 复用
+- [[capsule-hot-path-perf]] — 转轮每帧重跑 describe/renderResult；firstLine 别 split 整段 code；折叠早退；展开 Capsule 按 content 复用
 
 ## Entities
 - [[fanchao]] — fanchao — 使用者；技术栈 / 特点 / 名下踩过的坑
 
 ## Sources
-- [[2026-10-14-pi-capsule-tools]] — pi-capsule-tools 已装版体检方法：装的是 npm:pi-capsule-tools@1.1.1，源码与 ~/…
-- [[2026-10-19-pi-tui-的-truncatetowidth]] — pi-tui 的 truncateToWidth 会在省略号前插一个完整 SGR 重置 \x1b[0m，它连 pi 外壳给的背景色一起清掉，导致 ……
-- [[2026-10-19-fullscreen-卡顿压测结论-用-pi]] — fullscreen 卡顿压测结论：用 pi 自己的 renderLayoutFrame 铺 2000 个折叠胶囊，每帧只要 0.56ms…
 
 ## Syntheses
 
@@ -29,3 +30,5 @@
 - [[log-2026-10-10]] — 2026-10-10（会话快照 + 任务归档）
 - [[log-2026-10-11]] — 2026-10-11（会话快照 + 任务归档）
 - [[log-2026-10-14]] — 2026-10-14（会话快照 + 任务归档）
+- [[session-2026-11-08-s01a1b97a]] — 会话：现在有个问题 ctx_execute 也要压缩一下，还有 现在think…
+- [[log-2026-10-21]] — 2026-10-21（会话快照 + 任务归档）
