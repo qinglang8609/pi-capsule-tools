@@ -4,6 +4,9 @@
 
 ## Done
 
+### 2026-11-09
+- [x] ctx-capsule-fold [[fanchao]] — 让 ctx_* 工具也走胶囊折叠：先读懂 capsule-tools.ts 的注册与匹配逻辑 【落地】 (完成 2026-11-09 01a1c017-99d5-74)
+
 ### 2026-11-08
 - [x] release-1.3.0 [[fanchao]] — 发布 1.3.0：提交、npm version、publish、推 tag、切回 npm 装版 — 1.3.0 已上 registry（latest=1.3.0，modified 06:26）；main+tagn v1.3.0 已推；装版切回 npm 包，md5 e7dd4e15 与工作树一致，resolve 检查不 SKIP 【落地】 (完成 2026-11-08 01a1b9bb-59c3-70)
 - [x] mcp-error-no-compress [[fanchao]] — 查 MCP 工具报错时输出被压缩的来路，修成报错原文完整保留 — MCP 工具（mcp / mcp__*）也走胶囊：折叠行只留内层工具名（abs_task），报错时整行转红，正文 ctrl+o 看。自检 159 项全绿，resolve 检查确认胶囊渲染器在 pi 交互模式里压过适配器自带渲染。已把 pi 装机切到本地路径，等 /reload 看实际效果 【落地】 (完成 2026-11-08 01a1b9bb-59c3-70)
