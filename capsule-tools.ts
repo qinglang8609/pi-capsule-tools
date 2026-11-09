@@ -416,6 +416,14 @@ export function isMcpTool(toolName: string): boolean {
 }
 
 /**
+ * context-mode 自己的 `ctx_*` 工具。它们不是 MCP 命名空间下的工具（名字里没有 `mcp__`），
+ * 但同样会把参数和结果原文铺开，所以也折成胶囊。
+ */
+export function isCtxTool(toolName: string): boolean {
+	return toolName.startsWith("ctx_");
+}
+
+/**
  * 折叠行上那一个词，按序取：直连工具名（`mcp__abs__abs_task` → `abs_task`）、
  * 内层工具名（`mcp__abs` 配合 `{tool:"abs_task"}`）、网关动作（`status`）。
  * 工具名里自带的 `__` 会被截断——只是折叠行上的简称，全名仍在工具标签里。
@@ -453,6 +461,63 @@ function mcpDescribe(
 		command: mcpCommand(toolName, args),
 		body: mcpBody(toolName, args),
 		reason: phase === "partial" ? "calling…" : ctx?.isError ? "failed" : undefined,
+	};
+}
+
+/**
+ * 折叠行上那一个词：按各工具自己的参数挑出最能说明「这次干了什么」的一个。
+ * 数组只取第一条并标 `+N` —— ctx_search 的 queries、ctx_batch 的 commands 都可能一大串。
+ * 返回 undefined 表示这次调用没有可说的参数（ctx_stats / ctx_doctor），折叠行只留工具名。
+ */
+function ctxCommand(toolName: string, args: any): string | undefined {
+	const word = (value: any): string | undefined => {
+		if (Array.isArray(value) && value.length) {
+			const head = firstLine(String(value[0]), 60);
+			return value.length > 1 ? `${head} +${value.length - 1}` : head;
+		}
+		if (typeof value === "string" && value.trim()) return firstLine(value, 60);
+		return undefined;
+	};
+	// 每个工具按用途排序，第一个有值的胜出。
+	const order: Record<string, string[]> = {
+		ctx_search: ["queries", "source", "scope"],
+		ctx_batch: ["commands", "queries"],
+		ctx_index: ["path", "url", "source"],
+		ctx_resume: ["session"],
+		ctx_purge: ["session", "source"],
+		ctx_upgrade: ["mode"],
+	};
+	for (const key of order[toolName] ?? []) {
+		const value = word(args?.[key]);
+		if (value) return value;
+	}
+	// ctx_resume 的 seq 是数字，单独处理；ctx_purge 的 project 是布尔开关。
+	if (toolName === "ctx_resume" && typeof args?.seq === "number") return `#${args.seq}`;
+	if (toolName === "ctx_purge" && args?.project === true) return "project";
+	return undefined;
+}
+
+/** 展开时的 `命令` 段：参数压成一行 JSON，比折叠行那一个词完整。 */
+function ctxBody(args: any): string | undefined {
+	if (!args || typeof args !== "object") return undefined;
+	try {
+		const json = JSON.stringify(args);
+		return json && json !== "{}" ? firstLine(json, 1000) : undefined;
+	} catch {
+		return undefined; // 循环引用等：宁可不给正文，也不能让整行渲染炸掉
+	}
+}
+
+function ctxDescribe(
+	toolName: string,
+	args: any,
+	phase: "call" | "partial" | "done",
+	ctx?: { isError?: boolean },
+): DescribeResult {
+	return {
+		command: ctxCommand(toolName, args) ?? "",
+		body: ctxBody(args),
+		reason: phase === "partial" ? "running…" : ctx?.isError ? "failed" : undefined,
 	};
 }
 
@@ -524,7 +589,9 @@ function detailsOf(toolName: string): Describe | undefined {
 			};
 		default:
 			// MCP 工具也折成胶囊；其他扩展的工具仍然保持它们自己的渲染。
-			return isMcpTool(toolName) ? (args, _result, phase, ctx) => mcpDescribe(toolName, args, phase, ctx) : undefined;
+			if (isMcpTool(toolName)) return (args, _result, phase, ctx) => mcpDescribe(toolName, args, phase, ctx);
+			// context-mode 里除了 ctx_execute（上面单独处理）之外的 `ctx_*` 工具。
+			return isCtxTool(toolName) ? (args, _result, phase, ctx) => ctxDescribe(toolName, args, phase, ctx) : undefined;
 	}
 }
 

@@ -72,7 +72,10 @@ rm ~/.pi/agent/extensions/capsule-tools.ts
 ## 覆盖范围
 
 - **内置工具**：bash、powershell、read、edit、write、grep、find、ls —— 胶囊渲染。**执行逻辑完全不碰**。
-- **context-mode**：`ctx_execute` —— 同样胶囊渲染（语言 + 代码首行，给了 `file` 就显路径）。其它 `ctx_*` 工具保持原样。
+- **context-mode**：`ctx_*` 全部胶囊渲染。`ctx_execute` 显语言 + 代码首行（给了 `file` 就显路径）；
+  `ctx_search` / `ctx_batch` 显第一条并标 `+N`；`ctx_index` 显路径 / URL / 来源；
+  `ctx_resume` 显 session 或 `#seq`；`ctx_purge` / `ctx_upgrade` 显目标或模式；
+  `ctx_stats` / `ctx_doctor` 没参数，折叠行只留工具名。展开时 `命令` 段仍给完整参数（一行 JSON）。
 - **MCP**：`mcp`（网关）和 `mcp__<server>`（命名空间/直连工具）—— 胶囊渲染，折叠行只放内层工具名（`abs_task`），报错时整行转红。pi-mcp-adapter 自己那套渲染会把调用参数和结果原文铺开，**报错时尤其长**，所以这里接管了它。展开时 `命令` 段给内层参数（一行 JSON）。
 - **其他工具**（其他扩展的工具）：**不动**，保留它们自己的渲染。
 - **think 折叠**：加载时如果用户 settings 里从没设过 `hideThinkingBlock`，补写成 `true`
@@ -92,6 +95,13 @@ rm ~/.pi/agent/extensions/capsule-tools.ts
 | `find` | 模式 / 路径 | — |
 | `ls` | 路径 | — |
 | `ctx_execute` | 语言 + 代码首行；给了 `file` 就显路径 | — |
+| `ctx_search` | 第一个查询词，多了标 `+N` | `failed` |
+| `ctx_batch` | 第一条命令，多了标 `+N` | `failed` |
+| `ctx_index` | 路径 / URL / 来源 | `failed` |
+| `ctx_resume` | session，其次 `#seq` | `failed` |
+| `ctx_purge` | session / source / `project` | `failed` |
+| `ctx_upgrade` | 模式 | `failed` |
+| `ctx_stats`、`ctx_doctor` | 无参数，只留工具名 | `failed` |
 | `mcp` | 内层工具名，其次网关动作（`status` / `install`…） | `failed` |
 | `mcp__<server>` | 内层工具名（`abs_task`） | `failed` |
 

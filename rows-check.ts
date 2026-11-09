@@ -147,6 +147,63 @@ check("path tools are distinguishable", new Set(heads).size === 3, `got ${JSON.s
 	check("ctx_execute expanded shows the result", expanded.includes("结果") && expanded.includes("3"), expanded);
 }
 {
+	// context-mode 其余 `ctx_*`：以前保持原样（参数与结果铺开），现在也折成胶囊。
+	const search = capsuleCallRow(theme, "ctx_search", { queries: ["auth middleware", "token"] }, {}, "call")
+		.render(80)[0] ?? "";
+	check("ctx_search folds to one row and shows the first query",
+		search.includes("auth middleware") && search.includes("+1"), search);
+	check("ctx_search does not dump every query", !search.includes("token"), search);
+
+	const batch = capsuleCallRow(theme, "ctx_batch", { commands: ["git log -5", "ls"], queries: ["changes"] }, {}, "call")
+		.render(80)[0] ?? "";
+	check("ctx_batch shows the first command with a count", batch.includes("git log -5") && batch.includes("+1"), batch);
+
+	const indexed = capsuleCallRow(theme, "ctx_index", { path: "/tmp/docs/api.md" }, {}, "call").render(80)[0] ?? "";
+	check("ctx_index shows the indexed path", indexed.includes("api.md"), indexed);
+
+	// content 可能是一大段文本，折叠行不能把它带上。
+	const urlIndex = capsuleCallRow(theme, "ctx_index",
+		{ url: "https://example.com/a", content: "x".repeat(50_000) }, {}, "call").render(80)[0] ?? "";
+	check("ctx_index with url does not dump the content",
+		urlIndex.includes("example.com") && !urlIndex.includes("xxxx"), urlIndex);
+
+	const resume = capsuleCallRow(theme, "ctx_resume", { seq: 12 }, {}, "call").render(80)[0] ?? "";
+	check("ctx_resume shows the sequence number", resume.includes("#12"), resume);
+
+	// 无参数的工具（ctx_stats / ctx_doctor）：折叠行只剩工具名，不能崩。
+	const statsRows = capsuleCallRow(theme, "ctx_stats", {}, {}, "call").render(80);
+	check("ctx_stats folds to one row with just the tool name",
+		statsRows.length === 1 && (statsRows[0] ?? "").includes("ctx_stats"), JSON.stringify(statsRows));
+
+	// 报错走红色那条路，和 MCP 一致。
+	const tones: string[] = [];
+	capsuleCallRow({ fg: (t: string, s: string) => (tones.push(t), s), bold: (s: string) => s },
+		"ctx_purge", { source: "old-docs" }, { content: [{ type: "text", text: "no such source" }] }, "done",
+		{ isError: true }).render(80);
+	check("failed ctx tool uses the error tone", tones.includes("error"), tones.join(","));
+
+	const expandedCtx = capsuleResultRow(theme, "ctx_search", { queries: ["auth"] },
+		{ content: [{ type: "text", text: "3 hits" }] }, true).render(80).join("\n");
+	check("expanded ctx tool shows the full arguments",
+		expandedCtx.includes("命令") && expandedCtx.includes('"queries":["auth"]'), expandedCtx);
+	check("expanded ctx tool shows the result", expandedCtx.includes("结果") && expandedCtx.includes("3 hits"), expandedCtx);
+
+	// 报错也一样折叠：折叠态只留一行红胶囊，报错原文进展开态。
+	const ctxError = { content: [{ type: "text", text: "Error: no such source\n  usage: ctx_purge --source …" }] };
+	const errorCollapsed = capsuleResultRow(theme, "ctx_purge", { source: "old-docs" }, ctxError, false, undefined, true)
+		.render(80).join("");
+	check("failed ctx result stays folded", errorCollapsed.trim() === "", JSON.stringify(errorCollapsed));
+	const errorCall = capsuleCallRow(theme, "ctx_purge", { source: "old-docs" }, ctxError, "done", { isError: true })
+		.render(80)[0] ?? "";
+	check("failed ctx call says failed without the error text",
+		errorCall.includes("failed") && !errorCall.includes("no such source"), errorCall);
+	const errorExpanded = capsuleResultRow(theme, "ctx_purge", { source: "old-docs" }, ctxError, true, undefined, true)
+		.render(80).join("\n");
+	check("expanded failed ctx tool keeps the error text and the notice",
+		errorExpanded.includes("no such source") && errorExpanded.includes("failed"), errorExpanded);
+}
+
+{
 	// MCP 工具（pi-mcp-adapter）：`mcp__<server>` / `mcp` 也要折成胶囊。
 	// 之前它们走适配器自己的渲染，参数和报错原文整段铺开，报错时一屏就没了。
 	const mcpArgs = { tool: "abs_task", args: { action: "start", cwd: "/tmp", id: "probe" } };

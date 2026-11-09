@@ -56,14 +56,21 @@ const base = () => ({ renderCall: () => "BUILTIN", renderResult: () => "BUILTIN"
 const resolve = (i: number, name: string) =>
 	i < resolvers.length ? resolvers[i](name, () => resolve(i + 1, name)) : base();
 
-for (const name of ["bash", "powershell", "read", "edit", "write", "grep", "find", "ls", "ctx_execute", "mcp", "mcp__abs"]) {
+// context-mode 的 `ctx_*` 全部要落到胶囊上：以前只有 ctx_execute 被接管，
+// 其余几个（search / batch / index / resume / stats / doctor / upgrade / purge）
+// 走 context-mode 自己的渲染，参数和结果原文整段铺开。
+for (const name of [
+	"bash", "powershell", "read", "edit", "write", "grep", "find", "ls",
+	"ctx_execute", "ctx_search", "ctx_batch", "ctx_index", "ctx_resume", "ctx_purge", "ctx_upgrade",
+	"ctx_stats", "ctx_doctor", "mcp", "mcp__abs",
+]) {
 	const renderers = resolve(0, name) as any;
 	check(`${name}: capsule renderer wins`, typeof renderers?.renderCall === "function");
 	check(`${name}: renderShell is default so pi paints the background`,
 		(renderers?.renderShell ?? "default") === "default");
 }
 
-// 其他扩展的工具仍然原样穿透（MCP 不在其列，MCP 也折胶囊）。
+// 其他扩展的工具仍然原样穿透（MCP 和 ctx_* 不在其列，它们也折胶囊）。
 const unknown = resolve(0, "some_other_ext_tool") as any;
 check("unknown tool falls through to base", unknown?.renderCall?.() === "BUILTIN");
 
